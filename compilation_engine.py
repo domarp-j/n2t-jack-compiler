@@ -13,25 +13,83 @@ The subroutine call logic should be handled in compile_term().
 Refer to Unit 4.5 for details.
 """
 
+
 class CompilationEngine:
-  def __init__(self, input_file, output_file):
-    pass
+  def __init__(self, tokenizer):
+    self.tokenizer = tokenizer
+    self.xml_output = self.compile_next()
 
 
   def compile_class(self):
-    pass
+    self.tokenizer.advance()
+    identifier = self.tokenizer.identifier()
+
+    self.tokenizer.advance()
+    symbol_0 = self.tokenizer.symbol()
+    assert symbol_0 == '{', "Expected { but found: " + symbol_0
+
+    inner_content = self.compile_next()
+
+    self.tokenizer.advance()
+    symbol_1 = self.tokenizer.symbol()
+    assert symbol_0 == '}', "Expected } but found: " + symbol_1
+
+    return f"""
+      <class>
+        <keyword>class</keyword>
+        <identifier>{identifier}</identifier>
+        <symbol>{symbol_0}</symbol>
+        {inner_content}
+      </class>
+    """
 
 
   def compile_class_var_dec(self):
-   pass
+    pass
 
 
   def compile_subroutine_dec(self):
-    pass
+    self.tokenizer.advance()
+    return_type = self.tokenizer.keyword()
+
+    self.tokenizer.advance()
+    identifier = self.tokenizer.identifier()
+
+    self.tokenizer.advance()
+    symbol_0 = self.tokenizer.symbol()
+    assert symbol_0 == '(', "Expected ( but found: " + symbol_0
+
+    self.tokenizer.advance()
+    parameter_list = self.compile_parameter_list()
+
+    # compile_parameter_list() should have already advanced for us.
+    symbol_1 = self.tokenizer.symbol()
+    assert symbol_1 == ')', "Expected ) but found: " + symbol_0
+
+    return f"""
+      <subroutineDec>
+        <keyword>function</keyword>
+        <keyword>{return_type}</keyword>
+        <identifier>{identifier}</identifier>
+        <symbol>{symbol_0}</symbol>
+        {parameter_list}
+        <symbol>{symbol_1}</symbol>
+      </subroutineDec>
+    """
 
 
   def compile_parameter_list(self):
-    pass
+    parameter_list = "<parameterList>"
+
+    while self.tokenizer.current_token != ')':
+      parameter_list += f"""
+        <{self.tokenizer.token_type}>{self.tokenizer.current_token}</{self.tokenizer.token_type}>
+      """
+      self.tokenizer.advance()
+
+    parameter_list += "</parameterList>"
+
+    return parameter_list
 
 
   def compile_subroutine_body(self):
@@ -85,3 +143,11 @@ class CompilationEngine:
     pass
 
 
+  def compile_next(self):
+    self.tokenizer.advance()
+
+    if self.tokenizer.current_token == 'class':
+      return self.compile_class()
+
+    if self.tokenizer.current_token == 'function':
+      return self.compile_subroutine_dec()

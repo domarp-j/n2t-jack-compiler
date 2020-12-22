@@ -18,11 +18,11 @@ import pdb
 
 
 # TOKEN TYPES
-KEYWORD = 'KEYWORD'
-SYMBOL = 'SYMBOL'
-IDENTIFIER = 'IDENTIFIER'
-INT_CONST = 'INT_CONST'
-STRING_CONST = 'STRING_CONST'
+KEYWORD = 'keyword'
+SYMBOL = 'symbol'
+IDENTIFIER = 'identifier'
+INT_CONST = 'integerConstant'
+STRING_CONST = 'stringConstant'
 
 
 KEYWORDS = [
@@ -157,7 +157,6 @@ class JackTokenizer:
   # Return the current token as a keyword.
   # See KEYWORDS for a full list.
   def keyword(self):
-
     if self.token_type != KEYWORD:
       return
 
