@@ -35,10 +35,9 @@ class JackAnalyzer:
 
   def tokenize(self):
     token_stream = JackTokenizer(self.jack_input)
-    # for _ in range(0, 20):
-    #   token_stream.advance()
-    #   print(token_stream.current_token)
 
     while token_stream.has_more_tokens():
       print(token_stream.current_token)
+      print(token_stream.token_type)
+      print('~~~~~~~~~~~~~~~~~~~~~~`')
       token_stream.advance()

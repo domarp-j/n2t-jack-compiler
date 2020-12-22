@@ -17,6 +17,7 @@ import re
 import pdb
 
 
+# TOKEN TYPES
 KEYWORD = 'KEYWORD'
 SYMBOL = 'SYMBOL'
 IDENTIFIER = 'IDENTIFIER'
@@ -83,15 +84,19 @@ class JackTokenizer:
     # Store the position of the next possible token.
     self.token_pos = 0
 
+    # Store the token type.
+    self.token_type = None
+
     # Store in state whether the tokenizer is currently in a string.
     self.string_mode = False
 
 
+  # Determine whether tokenization is complete.
   def has_more_tokens(self):
-    # Return True if there are more tokens to parse.
     return self.token_pos < len(self.input_stream)
 
 
+  # Advance to the next token.
   def advance(self, reset = True):
     if not self.has_more_tokens():
       return
@@ -102,83 +107,91 @@ class JackTokenizer:
     current_char = self.input_stream[self.token_pos]
     self.token_pos += 1
 
-    if re.search(r"\w", current_char):
+    # Handle quotations, which indicate strings.
+    # Note that it could be an opening or closing quotation.
+    if current_char == '"':
+      self.current_token += '"'
+
+      if self.string_mode:
+        self.string_mode = False
+      else:
+        self.string_mode = True
+        self.advance(reset = False)
+
+    # Handle alphanumeric characters and underscores.
+    if re.search(r"\w", current_char) or self.string_mode:
       self.current_token += current_char
       self.advance(reset = False)
 
+    # Handle symbols.
     if current_char in SYMBOLS:
       if self.current_token:
         self.token_pos -= 1
       else:
         self.current_token = current_char
 
+    # Advance further if current token is empty.
     if not self.current_token:
       self.advance()
 
+    self.determine_token_type()
 
-  def token_type(self):
+
+  # Determine the current token's type.
+  # See TOKEN TYPES at the top of the file for a full list.
+  def determine_token_type(self):
     if self.current_token == "":
-      return None
+      self.token_type = None
     elif self.current_token in SYMBOLS:
-      return SYMBOL
+      self.token_type = SYMBOL
     elif self.current_token in KEYWORDS:
-      return KEYWORD
+      self.token_type = KEYWORD
     elif re.search(r"\D", self.current_token) == None:
-      return INT_CONST
+      self.token_type = INT_CONST
     elif self.current_token[0] == '"':
-      return STRING_CONST
+      self.token_type = STRING_CONST
     else:
-      return IDENTIFIER
+      self.token_type = IDENTIFIER
 
 
+  # Return the current token as a keyword.
+  # See KEYWORDS for a full list.
   def keyword(self):
-    # Returns the current token as a keyword.
-    # See KEYWORDS for a full list.
+
     if self.token_type != KEYWORD:
-      pass
+      return
+
     return self.current_token
 
 
+  # Return the current token as a symbol.
   def symbol(self):
-    # Return the current token as a symbol.
     if self.token_type != SYMBOL:
-      pass
+      return
+
     return self.current_token
 
 
+  # Return the current token (an identifier).
   def identifier(self):
-    # Return the current token (an identifier).
     if self.token_type != IDENTIFIER:
-      pass
+      return
+
     return self.current_token
 
 
+   # Return the integer value of the current token.
   def int_val(self):
-    # Return the integer value of the current token.
     if self.token_type != INT_CONST:
-      pass
+      return
+
     return int(self.current_token)
 
 
+  # Return the string value of the current token, without double quotes or newlines.
   def string_val(self):
-    # Return the string value of the current token, without double quotes or newlines.
     if self.token_type != STRING_CONST:
-      pass
+      return
+
     return re.sub(r"\"|\n", "", self.current_token)
-
-
-  # def token_type_from_chars(self):
-  #   # Do nothing if current token is empty.
-  #   if self.token_type == None:
-  #     return
-
-  #   # Determine the token type from a sequence of alphanumeric characters.
-  #   if self.current_token in KEYWORDS:
-  #     self.token_type = KEYWORD
-  #   elif self.current_token[0] == '"':
-  #     self.token_type = STRING_CONST
-  #   elif re.search(r"\d", self.token_type[0]) != None:
-  #     self.token_type = INT_CONST
-  #   else:
-  #     self.token_type = IDENTIFIER
 
