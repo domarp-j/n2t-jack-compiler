@@ -24,7 +24,7 @@ class CompilationEngine:
     self.xml_output = self.compile_statement()
 
 
-  def compile_class(self):
+  def compile_class(self): # DONE
     self.tokenizer.advance()
     identifier = self.tokenizer.identifier()
 
@@ -50,7 +50,7 @@ class CompilationEngine:
     """
 
 
-  def compile_class_var_dec(self):
+  def compile_class_var_dec(self): # DONE
     class_var_dec = "<classVarDec>"
 
     while self.tokenizer.symbol() != ';':
@@ -65,7 +65,9 @@ class CompilationEngine:
     return class_var_dec
 
 
-  def compile_subroutine_dec(self):
+  def compile_subroutine_dec(self): # DONE
+    subroutine_type = self.tokenizer.keyword()
+
     self.tokenizer.advance()
     return_type = self.tokenizer.keyword()
 
@@ -83,7 +85,7 @@ class CompilationEngine:
 
     return f"""
       <subroutineDec>
-        <keyword>function</keyword>
+        <keyword>{subroutine_type}</keyword>
         <keyword>{return_type}</keyword>
         <identifier>{identifier}</identifier>
         <symbol>(</symbol>
@@ -94,7 +96,7 @@ class CompilationEngine:
     """
 
 
-  def compile_parameter_list(self):
+  def compile_parameter_list(self): # DONE
     parameter_list = "<parameterList>"
 
     while self.tokenizer.current_token != ')':
@@ -108,7 +110,7 @@ class CompilationEngine:
     return parameter_list
 
 
-  def compile_subroutine_body(self):
+  def compile_subroutine_body(self): # DONE
     self.tokenizer.advance()
     self.assert_symbol('{')
 
@@ -126,7 +128,7 @@ class CompilationEngine:
     """
 
 
-  def compile_var_dec(self):
+  def compile_var_dec(self): # DONE
     var_dec = "<varDec>"
 
     while self.tokenizer.symbol() != ';':
@@ -147,10 +149,13 @@ class CompilationEngine:
     self.tokenizer.advance()
 
     while self.tokenizer.current_token != '}':
-      statements += self.compile_statement()
+      if self.tokenizer.symbol():
+        statements += f"<symbol>{self.tokenizer.symbol()}</symbol>"
+      else:
+        statements += self.compile_statement()
+
       self.tokenizer.advance()
 
-    statements += "<symbol>}</symbol>"
     statements += "</statements>"
 
     return statements
@@ -166,18 +171,19 @@ class CompilationEngine:
 
   def compile_let(self):
     self.tokenizer.advance()
-    identifier = self.tokenizer.identifier
+    identifier = self.tokenizer.identifier()
 
     self.tokenizer.advance()
     self.assert_symbol('=')
 
+    self.tokenizer.advance()
     expression = self.compile_expression()
 
     return f"""
       <letStatement>
         <keyword>let</keyword>
         <identifier>{identifier}</identifier>
-        <symbol>=</identifier>
+        <symbol>=</symbol>
         {expression}
         <symbol>;</symbol>
       </letStatement>
@@ -209,42 +215,45 @@ class CompilationEngine:
 
 
   def compile_expression(self):
-    # term = self.compile_term()
+    term = self.compile_term()
 
-    # return f"""
-    #   <expression>
-    #     {term}
-    #   </expression>
-    # """
-    pass
+    return f"""
+      <expression>
+        {term}
+      </expression>
+    """
 
 
   def compile_term(self):
-    # self.tokenizer.advance()
+    token_type = self.tokenizer.token_type
+    current_token = self.tokenizer.current_token
 
-    # return f"""
-    #   <term>
-    #     <{self.tokenizer.token_type}>{self.tokenizer.current_token}</{self.tokenizer.token_type}>
-    #   </term>
-    # """
-    pass
+    return f"""
+      <term>
+        <{token_type}>{current_token}</{token_type}>
+      </term>
+    """
 
 
   def compile_expression_list(self):
-    # expression_list = "<expressionList>"
+    expression_list = "<expressionList>"
 
-    # while self.tokenizer.symbol() != ',':
-    #   pass
+    while self.tokenizer.symbol() in (None, ','):
+      if self.tokenizer.symbol() == ',':
+        expression_list += "<symbol>,</symbol>"
+      else:
+        expression_list += self.compile_expression()
 
-    # expression_list += "</expressionList>"
-    pass
+      self.tokenizer.advance()
+
+    expression_list += "</expressionList>"
 
 
   def compile_statement(self):
     if self.tokenizer.current_token == 'class':
       return self.compile_class()
 
-    if self.tokenizer.current_token == 'function':
+    if self.tokenizer.current_token in ['constructor', 'function', 'method']:
       return self.compile_subroutine_dec()
 
     if self.tokenizer.current_token == 'let':
