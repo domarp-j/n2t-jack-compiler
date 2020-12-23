@@ -32,6 +32,7 @@ class JackAnalyzer:
 
 
   # Remove any comments from the given line of Jack code.
+  # TODO: Strip multi-line comments
   def strip_comments(self, line):
     # Strip everything after //
     line = re.sub(r"//(.*)", "", line)

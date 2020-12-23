@@ -40,7 +40,7 @@ KEYWORDS = [
   'let',
   'method',
   'null',
-  'return'
+  'return',
   'static',
   'this',
   'true',
