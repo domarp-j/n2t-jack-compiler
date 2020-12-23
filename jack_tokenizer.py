@@ -137,6 +137,25 @@ class JackTokenizer:
     self.determine_token_type()
 
 
+  # Look ahead at the next token.
+  def peek(self):
+    # Store the current state.
+    current_token = self.current_token
+    token_pos = self.token_pos
+    token_type = self.token_type
+
+    self.advance()
+
+    next_token = self.current_token
+
+    # Reset to current state.
+    self.current_token = current_token
+    self.token_pos = token_pos
+    self.token_type = token_type
+
+    return next_token
+
+
   # Determine the current token's type.
   # See TOKEN TYPES at the top of the file for a full list.
   def determine_token_type(self):

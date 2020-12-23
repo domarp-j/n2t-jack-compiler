@@ -162,7 +162,53 @@ class CompilationEngine:
 
 
   def compile_if_statement(self):
-    pass
+    self.tokenizer.advance()
+    self.assert_symbol('(')
+
+    self.tokenizer.advance()
+    expression = self.compile_expression()
+
+    self.tokenizer.advance()
+    self.assert_symbol(')')
+
+    self.tokenizer.advance()
+    self.assert_symbol('{')
+
+    statements = self.compile_statements()
+
+    self.assert_symbol('}')
+
+    else_content = ""
+
+    if self.tokenizer.peek() == 'else':
+      self.tokenizer.advance()
+
+      self.tokenizer.advance()
+      self.assert_symbol('{')
+
+      else_statements = self.compile_statements()
+
+      self.assert_symbol('}')
+
+      else_content = f"""
+        <keyword>else</keyword>
+        <symbol>{{</symbol>
+        {else_statements}
+        <symbol>}}</symbol>
+      """
+
+    return f"""
+      <ifStatement>
+        <keyword>if</keyword>
+        <symbol>(</symbol>
+        {expression}
+        <symbol>)</symbol>
+        <symbol>{{</symbol>
+        {statements}
+        <symbol>}}</symbol>
+        {else_content}
+      </ifStatement>
+    """
 
 
   def compile_while_statement(self):
@@ -202,6 +248,7 @@ class CompilationEngine:
     pass
 
 
+  # TODO: Handle expressions
   def compile_return(self):
     self.tokenizer.advance()
     self.assert_symbol(';')
@@ -258,6 +305,9 @@ class CompilationEngine:
 
     if self.tokenizer.current_token == 'let':
       return self.compile_let()
+
+    if self.tokenizer.current_token == 'if':
+      return self.compile_if_statement()
 
     if self.tokenizer.current_token == 'var':
       return self.compile_var_dec()
