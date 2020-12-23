@@ -21,7 +21,7 @@ class CompilationEngine:
   def __init__(self, tokenizer):
     self.tokenizer = tokenizer
     self.tokenizer.advance()
-    self.xml_output = self.compile_next()
+    self.xml_output = self.compile_statement()
 
 
   def compile_class(self):
@@ -31,25 +31,38 @@ class CompilationEngine:
     self.tokenizer.advance()
     self.assert_symbol('{')
 
-    self.tokenizer.advance()
-    inner_content = self.compile_next()
+    class_body = ""
 
     self.tokenizer.advance()
-    self.assert_symbol('}')
+
+    while self.tokenizer.symbol() != '}':
+      class_body += self.compile_statement()
+      self.tokenizer.advance()
 
     return f"""
       <class>
         <keyword>class</keyword>
         <identifier>{identifier}</identifier>
         <symbol>{{</symbol>
-        {inner_content}
+        {class_body}
         <symbol>}}</symbol>
       </class>
     """
 
 
   def compile_class_var_dec(self):
-    pass
+    class_var_dec = "<classVarDec>"
+
+    while self.tokenizer.symbol() != ';':
+      class_var_dec += f"""
+        <{self.tokenizer.token_type}>{self.tokenizer.current_token}</{self.tokenizer.token_type}>
+      """
+      self.tokenizer.advance()
+
+    class_var_dec += "<symbol>;</symbol>"
+    class_var_dec += "</classVarDec>"
+
+    return class_var_dec
 
 
   def compile_subroutine_dec(self):
@@ -134,7 +147,7 @@ class CompilationEngine:
     self.tokenizer.advance()
 
     while self.tokenizer.current_token != '}':
-      statements += self.compile_next()
+      statements += self.compile_statement()
       self.tokenizer.advance()
 
     statements += "<symbol>}</symbol>"
@@ -144,13 +157,6 @@ class CompilationEngine:
 
 
   def compile_if_statement(self):
-    # if_statement = "<ifStatement>"
-    # if_statement += "<keyword>if</keyword>"
-
-    # self.tokenizer.advance()
-    # self.assert_symbol('(')
-
-    # if_statement += self.compile_expression()
     pass
 
 
@@ -163,10 +169,9 @@ class CompilationEngine:
     identifier = self.tokenizer.identifier
 
     self.tokenizer.advance()
-    assert self.tokenizer.symbol() == '=', "Expected = but found: " + self.tokenizer.current_token
+    self.assert_symbol('=')
 
     expression = self.compile_expression()
-    # compile_statements() should have already advanced to ";" for us.
 
     return f"""
       <letStatement>
@@ -190,6 +195,7 @@ class CompilationEngine:
   def compile_do(self):
     pass
 
+
   def compile_return(self):
     self.tokenizer.advance()
     self.assert_symbol(';')
@@ -202,21 +208,39 @@ class CompilationEngine:
     """
 
 
-  # TODO
   def compile_expression(self):
-    return "<expression>TODO</expression>"
+    # term = self.compile_term()
 
-
-  def compile_term(self):
+    # return f"""
+    #   <expression>
+    #     {term}
+    #   </expression>
+    # """
     pass
 
 
-  # TODO
+  def compile_term(self):
+    # self.tokenizer.advance()
+
+    # return f"""
+    #   <term>
+    #     <{self.tokenizer.token_type}>{self.tokenizer.current_token}</{self.tokenizer.token_type}>
+    #   </term>
+    # """
+    pass
+
+
   def compile_expression_list(self):
-    return "<expressionList>TODO</expressionList>"
+    # expression_list = "<expressionList>"
+
+    # while self.tokenizer.symbol() != ',':
+    #   pass
+
+    # expression_list += "</expressionList>"
+    pass
 
 
-  def compile_next(self):
+  def compile_statement(self):
     if self.tokenizer.current_token == 'class':
       return self.compile_class()
 
@@ -229,8 +253,13 @@ class CompilationEngine:
     if self.tokenizer.current_token == 'var':
       return self.compile_var_dec()
 
+    if self.tokenizer.current_token in ['static', 'field']:
+      return self.compile_class_var_dec()
+
     if self.tokenizer.current_token == 'return':
       return self.compile_return()
+
+    raise AssertionError(f"Unrecognized token in compile_statement(): {self.tokenizer.current_token}")
 
 
   def assert_symbol(self, symbol):
