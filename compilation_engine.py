@@ -24,8 +24,37 @@ class CompilationEngine:
     self.xml_output = self.compile_statement()
 
 
+  def compile_statement(self):
+    if self.tokenizer.current_token == 'class':
+      return self.compile_class()
+
+    if self.tokenizer.current_token == 'do':
+      return self.compile_do()
+
+    if self.tokenizer.current_token in ['constructor', 'function', 'method']:
+      return self.compile_subroutine_dec()
+
+    if self.tokenizer.current_token == 'let':
+      return self.compile_let()
+
+    if self.tokenizer.current_token == 'if':
+      return self.compile_if_statement()
+
+    if self.tokenizer.current_token == 'var':
+      return self.compile_var_dec()
+
+    if self.tokenizer.current_token in ['static', 'field']:
+      return self.compile_class_var_dec()
+
+    if self.tokenizer.current_token == 'return':
+      return self.compile_return()
+
+    raise AssertionError(f"Unrecognized token in compile_statement(): {self.tokenizer.current_token}")
+
+
   def compile_class(self): # DONE
     self.tokenizer.advance()
+    self.assert_identifier()
     identifier = self.tokenizer.identifier()
 
     self.tokenizer.advance()
@@ -69,9 +98,11 @@ class CompilationEngine:
     subroutine_type = self.tokenizer.keyword()
 
     self.tokenizer.advance()
+    self.assert_keyword()
     return_type = self.tokenizer.keyword()
 
     self.tokenizer.advance()
+    self.assert_identifier()
     identifier = self.tokenizer.identifier()
 
     self.tokenizer.advance()
@@ -212,11 +243,38 @@ class CompilationEngine:
 
 
   def compile_while_statement(self):
-    pass
+    self.tokenizer.advance()
+    self.assert_symbol('(')
+
+    self.tokenizer.advance()
+    expression = self.compile_expression()
+
+    self.tokenizer.advance()
+    self.assert_symbol(')')
+
+    self.tokenizer.advance()
+    self.assert_symbol('{')
+
+    statements = self.compile_statements()
+
+    self.assert_symbol('}')
+
+    return f"""
+      <whileStatement>
+        <keyword>if</keyword>
+        <symbol>(</symbol>
+        {expression}
+        <symbol>)</symbol>
+        <symbol>{{</symbol>
+        {statements}
+        <symbol>}}</symbol>
+      </whileStatement>
+    """
 
 
   def compile_let(self):
     self.tokenizer.advance()
+    self.assert_identifier()
     identifier = self.tokenizer.identifier()
 
     self.tokenizer.advance()
@@ -236,26 +294,55 @@ class CompilationEngine:
     """
 
 
-  def compile_if(self):
-    pass
-
-
-  def compile_while(self):
-    pass
-
-
   def compile_do(self):
-    pass
+    do_statement = "<doStatement>"
+    do_statement += "<keyword>do</keyword>"
 
-
-  # TODO: Handle expressions
-  def compile_return(self):
     self.tokenizer.advance()
+    self.assert_identifier()
+    do_statement += f"<identifier>{self.tokenizer.identifier()}</identifier>"
+
+    self.tokenizer.advance()
+    self.assert_symbol()
+
+    if self.tokenizer.symbol() == '.':
+      do_statement += "<symbol>.</symbol>"
+
+      self.tokenizer.advance()
+      self.assert_identifier()
+      do_statement += f"<identifier>{self.tokenizer.identifier()}</identifier>"
+
+    self.tokenizer.advance()
+    self.assert_symbol('(')
+    do_statement +="<symbol>(</symbol>"
+
+    self.tokenizer.advance()
+    do_statement += self.compile_expression_list()
+
+    self.tokenizer.advance()
+    self.assert_symbol(';')
+    do_statement +="<symbol>;</symbol>"
+
+    do_statement += "</doStatement>"
+
+    return do_statement
+
+
+  def compile_return(self):
+    expression = ""
+
+    self.tokenizer.advance()
+
+    if self.tokenizer.current_token != ';':
+      expression = self.compile_expression()
+      self.tokenizer.advance()
+
     self.assert_symbol(';')
 
     return f"""
       <returnStatement>
         <keyword>return</keyword>
+        {expression}
         <symbol>;</symbol>
       </returnStatement>
     """
@@ -295,31 +382,20 @@ class CompilationEngine:
 
     expression_list += "</expressionList>"
 
-
-  def compile_statement(self):
-    if self.tokenizer.current_token == 'class':
-      return self.compile_class()
-
-    if self.tokenizer.current_token in ['constructor', 'function', 'method']:
-      return self.compile_subroutine_dec()
-
-    if self.tokenizer.current_token == 'let':
-      return self.compile_let()
-
-    if self.tokenizer.current_token == 'if':
-      return self.compile_if_statement()
-
-    if self.tokenizer.current_token == 'var':
-      return self.compile_var_dec()
-
-    if self.tokenizer.current_token in ['static', 'field']:
-      return self.compile_class_var_dec()
-
-    if self.tokenizer.current_token == 'return':
-      return self.compile_return()
-
-    raise AssertionError(f"Unrecognized token in compile_statement(): {self.tokenizer.current_token}")
+    return expression_list
 
 
-  def assert_symbol(self, symbol):
-    assert self.tokenizer.symbol() == symbol, f"Expected {symbol} but found: " + self.tokenizer.current_token
+  def assert_identifier(self):
+    assert self.tokenizer.identifier(), f"Expected an identifier but found: {self.tokenizer.current_token}"
+
+
+  def assert_keyword(self):
+    assert self.tokenizer.keyword(), f"Expected a keyword but found: {self.tokenizer.current_token}"
+
+
+  def assert_symbol(self, symbol = None):
+    if symbol:
+      assert self.tokenizer.symbol() == symbol, f"Expected {symbol} but found: {self.tokenizer.current_token}"
+    else:
+      assert self.tokenizer.symbol(), f"Expected a symbol but found: {self.tokenizer.current_token}"
+
