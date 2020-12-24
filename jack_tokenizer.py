@@ -73,6 +73,19 @@ SYMBOLS = [
 ]
 
 
+OPS = [
+  '+',
+  '-',
+  '*',
+  '/',
+  '&',
+  '|',
+  '<',
+  '>',
+  '='
+]
+
+
 class JackTokenizer:
   def __init__(self, input_stream):
     # Store input file contents as a string stream.
@@ -134,6 +147,7 @@ class JackTokenizer:
     if not self.current_token:
       self.advance()
 
+    print(f"New Token: {self.current_token}")
     self.determine_token_type()
 
 
@@ -212,4 +226,12 @@ class JackTokenizer:
       return
 
     return re.sub(r"\"|\n", "", self.current_token)
+
+
+  # Return the current token if its an operation.
+  def op(self):
+    if self.symbol() not in OPS:
+      return
+
+    return self.current_token
 
