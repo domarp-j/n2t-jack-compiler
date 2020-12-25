@@ -152,6 +152,7 @@ class JackTokenizer:
     if not self.current_token:
       self.advance()
 
+    print('New token: ', self.current_token)
     self.determine_token_type()
 
 
@@ -197,7 +198,7 @@ class JackTokenizer:
     if self.token_type != KEYWORD:
       return
 
-    return self.current_token
+    return f"<{self.token_type}> {self.current_token} </{self.token_type}>"
 
 
   # Return the current token as a symbol.
@@ -205,16 +206,18 @@ class JackTokenizer:
     if self.token_type != SYMBOL:
       return
 
+    sbol = self.current_token
+
     if self.current_token == '<':
-      return "&lt;"
+      sbol = "&lt;"
     elif self.current_token == '>':
-      return "&gt;"
+      sbol = "&gt;"
     elif self.current_token == '"':
-      return "&quot;"
+      sbol = "&quot;"
     elif self.current_token == '&':
-      return "&amp;"
-    else:
-      return self.current_token
+      sbol = "&amp;"
+
+    return f"<{self.token_type}> {sbol} </{self.token_type}>"
 
 
   # Return the current token (an identifier).
@@ -222,7 +225,7 @@ class JackTokenizer:
     if self.token_type != IDENTIFIER:
       return
 
-    return self.current_token
+    return f"<{self.token_type}> {self.current_token} </{self.token_type}>"
 
 
    # Return the integer value of the current token.
@@ -230,7 +233,7 @@ class JackTokenizer:
     if self.token_type != INT_CONST:
       return
 
-    return int(self.current_token)
+    return f"<{self.token_type}> {int(self.current_token)} </{self.token_type}>"
 
 
   # Return the string value of the current token, without double quotes or newlines.
@@ -238,7 +241,7 @@ class JackTokenizer:
     if self.token_type != STRING_CONST:
       return
 
-    return self.current_token[1:-1]
+    return f"<{self.token_type}> {self.current_token[1:-1]} </{self.token_type}>"
 
 
   # Return the current token if its an operation.
@@ -246,14 +249,16 @@ class JackTokenizer:
     if self.current_token not in OPS:
       return
 
+    sbol = self.current_token
+
     if self.current_token == '<':
-      return "&lt;"
+      sbol = "&lt;"
     elif self.current_token == '>':
-      return "&gt;"
+      sbol = "&gt;"
     elif self.current_token == '&':
-      return "&amp;"
-    else:
-      return self.current_token
+      sbol = "&amp;"
+
+    return f"<{self.token_type}> {sbol} </{self.token_type}>"
 
 
   # Return the current token if its a unary operation.
@@ -261,7 +266,27 @@ class JackTokenizer:
     if self.current_token not in UNARY_OPS:
       return
 
-    return self.current_token
+    return f"<{self.token_type}> {self.current_token} </{self.token_type}>"
+
+
+  # Return current token as an XML tag.
+  def current_token_xml(self):
+    if self.keyword():
+      return self.keyword()
+
+    if self.symbol():
+      return self.symbol()
+
+    if self.identifier():
+      return self.identifier()
+
+    if self.int_val():
+      return self.int_val()
+
+    if self.string_val():
+      return self.string_val()
+
+    raise AssertionError(f"Uncategorized token: {self.current_token}")
 
 
   # Run a test on the tokenizer.
@@ -270,11 +295,7 @@ class JackTokenizer:
 
     while self.has_more_tokens():
       self.advance()
-
-      if self.symbol():
-        xml_output += f"\n<symbol> {self.symbol()} </symbol>"
-      else:
-        xml_output += f"\n<{self.token_type}> {self.current_token} </{self.token_type}>"
+      xml_output += f"\n{self.current_token_xml()}"
 
     xml_output += "\n</tokens>\n"
 
