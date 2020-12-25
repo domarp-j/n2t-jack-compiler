@@ -265,3 +265,19 @@ class JackTokenizer:
 
     return self.current_token
 
+
+  # Run a test on the tokenizer.
+  def run_test(self):
+    xml_output = "<tokens>"
+
+    while self.has_more_tokens():
+      self.advance()
+
+      if self.symbol():
+        xml_output += f"\n<symbol> {self.symbol()} </symbol>"
+      else:
+        xml_output += f"\n<{self.token_type}> {self.current_token} </{self.token_type}>"
+
+    xml_output += "\n</tokens>\n"
+
+    return xml_output

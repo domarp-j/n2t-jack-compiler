@@ -32,6 +32,9 @@ class JackAnalyzer:
       self.strip_multiline_comments()
 
       self.build_tokenizer()
+      self.test_tokenizer(jack_file)
+
+      self.build_tokenizer()
       self.build_xml_output()
       self.write_xml(jack_file)
 
@@ -69,6 +72,13 @@ class JackAnalyzer:
     self.tokenizer = JackTokenizer(self.jack_input)
 
 
+  def test_tokenizer(self, jack_file):
+    token_xml_file_name = jack_file.replace(".jack", "T.xml")
+
+    with open(token_xml_file_name, 'w') as xml_file:
+      xml_file.write(self.tokenizer.run_test())
+
+
   # Build XML output.
   def build_xml_output(self):
     self.xml_output = CompilationEngine(self.tokenizer).xml_output
@@ -80,3 +90,5 @@ class JackAnalyzer:
 
     with open(xml_file_name, 'w') as xml_file:
       xml_file.write(self.xml_output)
+
+
