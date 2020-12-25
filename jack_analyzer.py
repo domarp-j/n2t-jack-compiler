@@ -9,6 +9,7 @@ Given a single .jack file or directory of .jack files:
 """
 
 
+import os
 import re
 
 from jack_tokenizer import JackTokenizer
@@ -16,23 +17,34 @@ from compilation_engine import CompilationEngine
 
 
 class JackAnalyzer:
-  def __init__(self, jack_input_file):
-    self.jack_input_file = jack_input_file
+  def __init__(self, argv1):
+    self.jack_files = self.handle_file_vs_dir(argv1)
 
-    self.jack_input = ""
-    self.xml_output = ""
+    for jack_file in self.jack_files:
+      self.jack_input = ""
+      self.xml_output = ""
 
-    with open(jack_input_file) as file:
-      for line in file.readlines():
-        self.jack_input += self.strip_comment_from_line(line)
+      with open(jack_file) as file:
+        for line in file.readlines():
+          self.jack_input += self.strip_comment_from_line(line)
 
-    self.strip_newlines()
-    self.strip_multiline_comments()
+      self.strip_newlines()
+      self.strip_multiline_comments()
 
-    self.build_tokenizer()
-    self.build_xml_output()
-    self.write_xml()
+      self.build_tokenizer()
+      self.build_xml_output()
+      self.write_xml(jack_file)
 
+
+  def handle_file_vs_dir(self, argv1):
+    if os.path.isdir(argv1):
+      return [
+        f"{argv1}/{file}"
+        for file in os.listdir(argv1)
+        if len(file) > 5 and file[-5:] == '.jack'
+      ]
+    else:
+      return [argv1]
 
   # Remove comments from a given line of Jack code.
   def strip_comment_from_line(self, line):
@@ -63,8 +75,8 @@ class JackAnalyzer:
 
 
   # Write the XML output string to a file.
-  def write_xml(self):
-    xml_file_name = self.jack_input_file.replace(".jack", ".test.xml")
+  def write_xml(self, jack_file):
+    xml_file_name = jack_file.replace(".jack", ".xml")
 
     with open(xml_file_name, 'w') as xml_file:
       xml_file.write(self.xml_output)
