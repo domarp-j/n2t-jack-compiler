@@ -24,21 +24,32 @@ class JackAnalyzer:
 
     with open(jack_input_file) as file:
       for line in file.readlines():
-        self.jack_input += self.strip_comments(line)
+        self.jack_input += self.strip_comment_from_line(line)
+
+    self.strip_newlines()
+    self.strip_multiline_comments()
 
     self.build_tokenizer()
     self.build_xml_output()
     self.write_xml()
 
 
-  # Remove any comments from the given line of Jack code.
-  # TODO: Strip multi-line comments
-  def strip_comments(self, line):
+  # Remove comments from a given line of Jack code.
+  def strip_comment_from_line(self, line):
     # Strip everything after //
     line = re.sub(r"//(.*)", "", line)
 
-    # Strip everything between /* */
-    return re.sub(r"/\*(.*?)\*/", "", line)
+    # Strip everything between /* */ and /** */
+    return re.sub(r"/\*\*?(.*)\*/", "", line)
+
+
+  # Remove multiline comments.
+  def strip_multiline_comments(self):
+    self.jack_input = re.sub(r"/\*\*?(.*?)\*/", "", self.jack_input)
+
+
+  def strip_newlines(self):
+    self.jack_input = re.sub("\n", "", self.jack_input)
 
 
   # Initialize JackTokenizer.

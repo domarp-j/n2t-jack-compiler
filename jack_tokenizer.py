@@ -245,15 +245,22 @@ class JackTokenizer:
 
   # Return the current token if its an operation.
   def op(self):
-    if self.symbol() not in OPS:
+    if self.current_token not in OPS:
       return
 
-    return self.current_token
+    if self.current_token == '<':
+      return "&lt;"
+    elif self.current_token == '>':
+      return "&gt;"
+    elif self.current_token == '&':
+      return "&amp;"
+    else:
+      return self.current_token
 
 
   # Return the current token if its a unary operation.
   def unary_op(self):
-    if self.symbol() not in UNARY_OPS:
+    if self.current_token not in UNARY_OPS:
       return
 
     return self.current_token

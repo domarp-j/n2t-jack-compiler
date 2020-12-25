@@ -103,29 +103,7 @@ class CompilationEngine:
     do_statement += "<keyword> do </keyword>"
 
     self.tokenizer.advance()
-    self.assert_identifier()
-    do_statement += f"<identifier> {self.tokenizer.identifier()} </identifier>"
-
-    self.tokenizer.advance()
-    self.assert_symbol()
-
-    if self.tokenizer.symbol() == '.':
-      do_statement += "<symbol> . </symbol>"
-
-      self.tokenizer.advance()
-      self.assert_identifier()
-      do_statement += f"<identifier> {self.tokenizer.identifier()} </identifier>"
-
-      self.tokenizer.advance()
-
-    self.assert_symbol('(')
-    do_statement +="<symbol> ( </symbol>"
-
-    self.tokenizer.advance()
-    do_statement += self.compile_expression_list()
-
-    self.assert_symbol(')')
-    do_statement +="<symbol> ) </symbol>"
+    do_statement += self.compile_subroutine_call()
 
     self.tokenizer.advance()
     self.assert_symbol(';')
@@ -138,6 +116,7 @@ class CompilationEngine:
 
   def compile_expression(self):
     expression = "<expression>"
+
     expression += self.compile_term()
 
     self.tokenizer.advance()
@@ -348,6 +327,36 @@ class CompilationEngine:
     return subroutine_body
 
 
+  def compile_subroutine_call(self):
+    subroutine_call = ""
+
+    self.assert_identifier()
+    subroutine_call += f"<identifier> {self.tokenizer.identifier()} </identifier>"
+
+    self.tokenizer.advance()
+    self.assert_symbol()
+
+    if self.tokenizer.symbol() == '.':
+      subroutine_call += "<symbol> . </symbol>"
+
+      self.tokenizer.advance()
+      self.assert_identifier()
+      subroutine_call += f"<identifier> {self.tokenizer.identifier()} </identifier>"
+
+      self.tokenizer.advance()
+
+    self.assert_symbol('(')
+    subroutine_call +="<symbol> ( </symbol>"
+
+    self.tokenizer.advance()
+    subroutine_call += self.compile_expression_list()
+
+    self.assert_symbol(')')
+    subroutine_call +="<symbol> ) </symbol>"
+
+    return subroutine_call
+
+
   def compile_subroutine_dec(self):
     subroutine_dec = "<subroutineDec>"
 
@@ -381,14 +390,64 @@ class CompilationEngine:
 
 
   def compile_term(self):
-    token_type = self.tokenizer.token_type
-    current_token = self.tokenizer.current_token
+    term = "<term>"
 
-    return f"""
-      <term>
-        <{token_type}> {current_token} </{token_type}>
-      </term>
-    """
+    if self.tokenizer.identifier() and self.tokenizer.peek() in ['.', '(', '[']:
+      identifier = self.tokenizer.identifier()
+      next_token = self.tokenizer.peek()
+
+      # Handle identifiers that precede subroutine calls x().
+      if next_token in ['.', '(']:
+        term += self.compile_subroutine_call()
+
+      # Handle identifiers that precede array accessors x[].
+      elif next_token == '[':
+        term += f"<identifier> {identifier} </identifier>"
+
+        self.tokenizer.advance()
+        term += f"<symbol> [ </symbol>"
+
+        self.tokenizer.advance()
+        term += self.compile_expression()
+
+        self.assert_symbol(']')
+        term += f"<symbol> ] </symbol>"
+
+    # Handle unary operations.
+    elif self.tokenizer.unary_op():
+      term += f"<symbol> {self.tokenizer.unary_op()} </symbol>"
+
+      self.tokenizer.advance()
+      term += self.compile_term()
+
+    # Handle parentheses surrounding expressions.
+    elif self.tokenizer.symbol() == '(':
+      term += "<symbol> ( </symbol>"
+
+      self.tokenizer.advance()
+      term += self.compile_expression()
+
+      self.assert_symbol(')')
+      term += "<symbol> ) </symbol>"
+
+    # Handle strings.
+    elif self.tokenizer.string_val():
+      term += f"""
+        <{self.tokenizer.token_type}>{self.tokenizer.string_val()}</{self.tokenizer.token_type}>
+      """
+
+    # Handle:
+    # - integers
+    # - keywords
+    # - identifiers that are not function calls x() or array accessors x[]
+    else:
+      term += f"""
+        <{self.tokenizer.token_type}>{self.tokenizer.current_token}</{self.tokenizer.token_type}>
+      """
+
+    term += "</term>"
+
+    return term
 
 
   def compile_var_dec(self):
