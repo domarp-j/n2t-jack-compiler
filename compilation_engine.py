@@ -37,6 +37,10 @@ class CompilationEngine:
     assert self.tokenizer.keyword(), f"Expected a keyword but found: {self.tokenizer.current_token}"
 
 
+  def assert_return_type(self):
+    assert self.tokenizer.keyword() or self.tokenizer.identifier(), f"Expected a keyword or identifier as the return type but found: {self.tokenizer.current_token}"
+
+
   def assert_symbol(self, symbol = None):
     if symbol:
       assert self.tokenizer.symbol() == symbol, f"Expected {symbol} but found: {self.tokenizer.current_token}"
@@ -112,18 +116,19 @@ class CompilationEngine:
       self.assert_identifier()
       do_statement += f"<identifier> {self.tokenizer.identifier()} </identifier>"
 
-    self.tokenizer.advance()
+      self.tokenizer.advance()
+
     self.assert_symbol('(')
     do_statement +="<symbol> ( </symbol>"
 
     self.tokenizer.advance()
     do_statement += self.compile_expression_list()
 
-    while self.tokenizer.symbol() != ';':
-      self.assert_symbol()
-      do_statement += f"<symbol> {self.tokenizer.symbol()} </symbol>"
-      self.tokenizer.advance()
+    self.assert_symbol(')')
+    do_statement +="<symbol> ) </symbol>"
 
+    self.tokenizer.advance()
+    self.assert_symbol(';')
     do_statement +="<symbol> ; </symbol>"
 
     do_statement += "</doStatement>"
@@ -136,6 +141,7 @@ class CompilationEngine:
     expression += self.compile_term()
 
     self.tokenizer.advance()
+
     if self.tokenizer.op():
       expression += f"<symbol> {self.tokenizer.op()} </symbol>"
 
@@ -152,13 +158,12 @@ class CompilationEngine:
   def compile_expression_list(self):
     expression_list = "<expressionList>"
 
-    while self.tokenizer.symbol() in (None, ','):
+    while self.tokenizer.symbol() not in [')', '}']:
       if self.tokenizer.symbol() == ',':
         expression_list += "<symbol> , </symbol>"
+        self.tokenizer.advance()
       else:
         expression_list += self.compile_expression()
-
-      self.tokenizer.advance()
 
     expression_list += "</expressionList>"
 
@@ -273,7 +278,6 @@ class CompilationEngine:
 
     if self.tokenizer.current_token != ';':
       expression = self.compile_expression()
-      self.tokenizer.advance()
 
     self.assert_symbol(';')
 
@@ -345,36 +349,35 @@ class CompilationEngine:
 
 
   def compile_subroutine_dec(self):
-    subroutine_type = self.tokenizer.keyword()
+    subroutine_dec = "<subroutineDec>"
+
+    # Insert the subroutine type (constructor vs. function vs. method).
+    subroutine_dec += f"<keyword>{self.tokenizer.keyword()}</keyword>"
 
     self.tokenizer.advance()
-    self.assert_keyword()
-    return_type = self.tokenizer.keyword()
+    self.assert_return_type()
+    subroutine_dec += f"<{self.tokenizer.token_type}>{self.tokenizer.current_token}</{self.tokenizer.token_type}>"
 
     self.tokenizer.advance()
     self.assert_identifier()
-    identifier = self.tokenizer.identifier()
+    subroutine_dec += f"<identifier>{self.tokenizer.identifier()}</identifier>"
 
     self.tokenizer.advance()
     self.assert_symbol('(')
+    subroutine_dec += "<symbol> ( </symbol>"
 
     self.tokenizer.advance()
-    parameter_list = self.compile_parameter_list()
+    subroutine_dec += self.compile_parameter_list()
 
     # compile_parameter_list() should have already advanced to ")" for us.
     self.assert_symbol(')')
+    subroutine_dec += "<symbol> ) </symbol>"
 
-    return f"""
-      <subroutineDec>
-        <keyword> {subroutine_type} </keyword>
-        <keyword> {return_type} </keyword>
-        <identifier> {identifier} </identifier>
-        <symbol> ( </symbol>
-        {parameter_list}
-        <symbol> ) </symbol>
-        {self.compile_subroutine_body()}
-      </subroutineDec>
-    """
+    subroutine_dec += self.compile_subroutine_body()
+
+    subroutine_dec += "</subroutineDec>"
+
+    return subroutine_dec
 
 
   def compile_term(self):
@@ -422,7 +425,7 @@ class CompilationEngine:
 
     return f"""
       <whileStatement>
-        <keyword> if </keyword>
+        <keyword> while </keyword>
         <symbol> ( </symbol>
         {expression}
         <symbol> ) </symbol>
