@@ -86,6 +86,12 @@ OPS = [
 ]
 
 
+UNARY_OPS = [
+  '-',
+  '~'
+]
+
+
 class JackTokenizer:
   def __init__(self, input_stream):
     # Store input file contents as a string stream.
@@ -201,7 +207,16 @@ class JackTokenizer:
     if self.token_type != SYMBOL:
       return
 
-    return self.current_token
+    if self.current_token == '<':
+      return "&lt;"
+    elif self.current_token == '>':
+      return "&gt;"
+    elif self.current_token == '"':
+      return "&quot;"
+    elif self.current_token == '&':
+      return "&amp;"
+    else:
+      return self.current_token
 
 
   # Return the current token (an identifier).
@@ -225,12 +240,20 @@ class JackTokenizer:
     if self.token_type != STRING_CONST:
       return
 
-    return re.sub(r"\"|\n", "", self.current_token)
+    return self.current_token[1:-1]
 
 
   # Return the current token if its an operation.
   def op(self):
     if self.symbol() not in OPS:
+      return
+
+    return self.current_token
+
+
+  # Return the current token if its a unary operation.
+  def unary_op(self):
+    if self.symbol() not in UNARY_OPS:
       return
 
     return self.current_token
