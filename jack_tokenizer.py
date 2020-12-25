@@ -14,7 +14,6 @@ See "Lexical elements" in jack-grammer.png
 
 
 import re
-import pdb
 
 
 # TOKEN TYPES
@@ -153,7 +152,6 @@ class JackTokenizer:
     if not self.current_token:
       self.advance()
 
-    print(f"New Token: {self.current_token}")
     self.determine_token_type()
 
 

@@ -14,9 +14,6 @@ Refer to Unit 4.5 for details.
 """
 
 
-import pdb
-
-
 class CompilationEngine:
   def __init__(self, tokenizer):
     self.tokenizer = tokenizer
