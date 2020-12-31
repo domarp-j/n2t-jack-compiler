@@ -4,36 +4,22 @@
 
 """
 EXPECTED COMMAND:
-JackAnalyzer input
+JackCompiler input
 
 input - fileName.jack or directory of .jack files
-output - fileName.xml or directory of .jack and .xml files
-
-THREE MODULES:
-JackAnalyzer
-JackTokenizer
-CompilationEngine
-
-JackAnalyzer should use JackTokenizer
-Lexical elements -> JackTokenizer
-All other grammer elements -> CompilationEngine
-CompilationEngine should also use JackTokenizer
-
-STEPS:
-Build JackTokenizer
-Build CompilationEngine
+output - fileName.vm or directory of .jack and .vm files
 """
 
 
 import sys
 
-from jack_analyzer import JackAnalyzer
+from jack_compiler import JackCompiler
 
 
 def main():
-  jack_input_file = sys.argv[1]
+  jack_input = sys.argv[1]
 
-  JackAnalyzer(jack_input_file)
+  JackCompiler(jack_input)
 
 
 if __name__ == "__main__":
