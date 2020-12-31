@@ -91,11 +91,13 @@ class CompilationEngine:
 
     # Add any class variable declarations to the XML.
     while self.tokenizer.keyword() and self.tokenizer.current_token in ['field', 'static']:
+      self.class_symbol_table.reset()
       class_body += self.compile_class_var_dec()
       self.tokenizer.advance()
 
     # Add any class subroutines to the XML.
     while self.tokenizer.keyword() and self.tokenizer.current_token in ['constructor', 'function', 'method']:
+      self.subroutine_symbol_table.reset()
       class_body += self.compile_subroutine_dec()
       self.tokenizer.advance()
 
@@ -130,7 +132,7 @@ class CompilationEngine:
     name = self.tokenizer.current_token
     self.tokenizer.advance()
 
-    # Update symbol table for subroutine.
+    # Update symbol table for class.
     self.class_symbol_table.define(name, typ, kind)
     class_var_dec += self.add_to_xml("<symbolTable>")
     self.depth += 1
@@ -151,7 +153,7 @@ class CompilationEngine:
       name = self.tokenizer.current_token
       self.tokenizer.advance()
 
-      # Update symbol table for subroutine.
+      # Update symbol table for class.
       self.class_symbol_table.define(name, typ, kind)
       class_var_dec += self.add_to_xml("<symbolTable>")
       self.depth += 1
@@ -331,11 +333,38 @@ class CompilationEngine:
 
   def compile_parameter_list(self):
     parameter_list = self.add_to_xml("<parameterList>")
+    self.depth += 1
+
+    param_content = []
 
     while self.tokenizer.current_token != ')':
+      if self.tokenizer.current_token != ',':
+        param_content.append(self.tokenizer.current_token)
+
       parameter_list += self.add_xml_for_current_token()
       self.tokenizer.advance()
 
+    typ = None
+
+    while len(param_content) > 0:
+      val = param_content.pop(0)
+
+      if typ == None:
+        typ = val
+      else:
+        name = val
+        self.subroutine_symbol_table.define(name, typ, 'argument')
+        parameter_list += self.add_to_xml("<symbolTable>")
+        self.depth += 1
+        parameter_list += self.add_to_xml(f"<name>{name}</name>")
+        parameter_list += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of(name)}</type>")
+        parameter_list += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of(name)}</kind>")
+        parameter_list += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of(name)}</count>")
+        self.depth -= 1
+        parameter_list += self.add_to_xml("</symbolTable>")
+        typ = None
+
+    self.depth -= 1
     parameter_list += self.add_to_xml("</parameterList>")
 
     return parameter_list
@@ -467,11 +496,25 @@ class CompilationEngine:
 
     # Insert the subroutine type (constructor vs. function vs. method).
     self.assert_keyword()
+    subroutine_type = self.tokenizer.current_token
     subroutine_dec += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
     self.assert_return_type()
+    return_type = self.tokenizer.current_token
     subroutine_dec += self.add_xml_for_current_token()
+
+    # Update symbol table for methods.
+    if subroutine_type == 'method':
+      self.subroutine_symbol_table.define('this', return_type, 'argument')
+      subroutine_dec += self.add_to_xml("<symbolTable>")
+      self.depth += 1
+      subroutine_dec += self.add_to_xml(f"<name> this </name>")
+      subroutine_dec += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of('this')}</type>")
+      subroutine_dec += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of('this')}</kind>")
+      subroutine_dec += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of('this')}</count>")
+      self.depth -= 1
+      subroutine_dec += self.add_to_xml("</symbolTable>")
 
     self.tokenizer.advance()
     self.assert_identifier()
@@ -562,9 +605,53 @@ class CompilationEngine:
 
     self.depth += 1
 
+    # kind (var)
+    var_dec += self.add_xml_for_current_token()
+    assert self.tokenizer.current_token == 'var', f"Expected var but found: {self.tokenizer.current_token}"
+    kind = 'local'
+    self.tokenizer.advance()
+
+    # type
+    var_dec += self.add_xml_for_current_token()
+    typ = self.tokenizer.current_token
+    self.tokenizer.advance()
+
+    # name
+    var_dec += self.add_xml_for_current_token()
+    name = self.tokenizer.current_token
+    self.tokenizer.advance()
+
+    # Update symbol table for subroutine.
+    self.subroutine_symbol_table.define(name, typ, kind)
+    var_dec += self.add_to_xml("<symbolTable>")
+    self.depth += 1
+    var_dec += self.add_to_xml(f"<name>{name}</name>")
+    var_dec += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of(name)}</type>")
+    var_dec += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of(name)}</kind>")
+    var_dec += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of(name)}</count>")
+    self.depth -= 1
+    var_dec += self.add_to_xml("</symbolTable>")
+
     while self.tokenizer.current_token != ';':
+      self.assert_symbol(',')
       var_dec += self.add_xml_for_current_token()
       self.tokenizer.advance()
+
+      # name
+      var_dec += self.add_xml_for_current_token()
+      name = self.tokenizer.current_token
+      self.tokenizer.advance()
+
+      # Update symbol table for subroutine.
+      self.subroutine_symbol_table.define(name, typ, kind)
+      var_dec += self.add_to_xml("<symbolTable>")
+      self.depth += 1
+      var_dec += self.add_to_xml(f"<name>{name}</name>")
+      var_dec += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of(name)}</type>")
+      var_dec += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of(name)}</kind>")
+      var_dec += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of(name)}</count>")
+      self.depth -= 1
+      var_dec += self.add_to_xml("</symbolTable>")
 
     var_dec += self.add_xml_for_current_token()
 

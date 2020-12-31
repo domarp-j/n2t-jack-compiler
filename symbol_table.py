@@ -18,9 +18,8 @@ class SymbolTable:
     self.reset_kind_count()
 
 
-  # Start a new subroutine scope.
-  # In other words, reset the SymbolTable.
-  def start_subroutine(self):
+  # Reset the symbol table.
+  def reset(self):
     self.table = {}
     self.reset_kind_count()
 
