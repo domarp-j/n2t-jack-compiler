@@ -152,7 +152,7 @@ class JackTokenizer:
     if not self.current_token:
       self.advance()
 
-    print('New token: ', self.current_token)
+    # print('New token: ', self.current_token)
     self.determine_token_type()
 
 

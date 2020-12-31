@@ -3,6 +3,9 @@ CompilationEngine
 """
 
 
+from symbol_table import SymbolTable
+
+
 XML_SPACING = 2
 
 
@@ -11,6 +14,9 @@ class CompilationEngine:
     self.tokenizer = tokenizer
     self.vm_writer = vm_writer
     self.depth = 0
+
+    self.class_symbol_table = SymbolTable()
+    self.subroutine_symbol_table = SymbolTable()
 
 
   def run(self):
@@ -109,11 +115,52 @@ class CompilationEngine:
 
     self.depth += 1
 
-    # Add class variable declarations to XML.
-    while self.tokenizer.current_token != ';':
-      class_var_dec += self.add_xml_for_current_token()
+    # kind (field vs. static)
+    class_var_dec += self.add_xml_for_current_token()
+    kind = self.tokenizer.current_token
+    self.tokenizer.advance()
 
+    # type
+    class_var_dec += self.add_xml_for_current_token()
+    typ = self.tokenizer.current_token
+    self.tokenizer.advance()
+
+    # name
+    class_var_dec += self.add_xml_for_current_token()
+    name = self.tokenizer.current_token
+    self.tokenizer.advance()
+
+    # Update symbol table for subroutine.
+    self.class_symbol_table.define(name, typ, kind)
+    class_var_dec += self.add_to_xml("<symbolTable>")
+    self.depth += 1
+    class_var_dec += self.add_to_xml(f"<name>{name}</name>")
+    class_var_dec += self.add_to_xml(f"<type>{self.class_symbol_table.type_of(name)}</type>")
+    class_var_dec += self.add_to_xml(f"<kind>{self.class_symbol_table.kind_of(name)}</kind>")
+    class_var_dec += self.add_to_xml(f"<count>{self.class_symbol_table.index_of(name)}</count>")
+    self.depth -= 1
+    class_var_dec += self.add_to_xml("</symbolTable>")
+
+    while self.tokenizer.current_token != ';':
+      self.assert_symbol(',')
+      class_var_dec += self.add_xml_for_current_token()
       self.tokenizer.advance()
+
+      # name
+      class_var_dec += self.add_xml_for_current_token()
+      name = self.tokenizer.current_token
+      self.tokenizer.advance()
+
+      # Update symbol table for subroutine.
+      self.class_symbol_table.define(name, typ, kind)
+      class_var_dec += self.add_to_xml("<symbolTable>")
+      self.depth += 1
+      class_var_dec += self.add_to_xml(f"<name>{name}</name>")
+      class_var_dec += self.add_to_xml(f"<type>{self.class_symbol_table.type_of(name)}</type>")
+      class_var_dec += self.add_to_xml(f"<kind>{self.class_symbol_table.kind_of(name)}</kind>")
+      class_var_dec += self.add_to_xml(f"<count>{self.class_symbol_table.index_of(name)}</count>")
+      self.depth -= 1
+      class_var_dec += self.add_to_xml("</symbolTable>")
 
     class_var_dec += self.add_xml_for_current_token()
 
