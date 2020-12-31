@@ -37,8 +37,7 @@ class JackCompiler:
       self.build_tokenizer()
       self.build_vm_writer(jack_file)
 
-      self.build_xml(jack_file)
-      # self.run_compilation_engine()
+      self.run_compilation_engine()
 
       self.vm_writer.close()
 
@@ -83,15 +82,6 @@ class JackCompiler:
   # Initialize the JackTokenizer.
   def build_vm_writer(self, jack_file):
     self.vm_writer = VMWriter(jack_file)
-
-
-  def build_xml(self, jack_file):
-    xml_content = CompilationEngine(self.tokenizer, self.vm_writer).run()
-
-    xml_file = jack_file.replace(".jack", ".test.xml")
-
-    with open(xml_file, 'w') as xf:
-      xf.write(xml_content)
 
 
   # Run the CompilationEngine.

@@ -6,14 +6,10 @@ CompilationEngine
 from symbol_table import SymbolTable
 
 
-XML_SPACING = 2
-
-
 class CompilationEngine:
   def __init__(self, tokenizer, vm_writer):
     self.tokenizer = tokenizer
     self.vm_writer = vm_writer
-    self.depth = 0
 
     self.class_symbol_table = SymbolTable()
     self.subroutine_symbol_table = SymbolTable()
@@ -33,8 +29,13 @@ class CompilationEngine:
     assert self.tokenizer.identifier(), f"Expected an identifier but found: {self.tokenizer.current_token}"
 
 
-  def assert_keyword(self):
-    assert self.tokenizer.keyword(), f"Expected a keyword but found: {self.tokenizer.current_token}"
+  def assert_keyword(self, keyword = None):
+    if keyword and type(keyword) is list:
+      assert self.tokenizer.keyword() and self.tokenizer.current_token in keyword, f"Expected one of keywords {keyword} but found: {self.tokenizer.current_token}"
+    elif keyword:
+      assert self.tokenizer.keyword() and self.tokenizer.current_token == keyword, f"Expected keyword {keyword} but found: {self.tokenizer.current_token}"
+    else:
+      assert self.tokenizer.keyword(), f"Expected a keyword but found: {self.tokenizer.current_token}"
 
 
   def assert_return_type(self):
@@ -42,27 +43,13 @@ class CompilationEngine:
 
 
   def assert_symbol(self, symbol = None):
-    if symbol:
-      assert self.tokenizer.current_token == symbol, f"Expected {symbol} but found: {self.tokenizer.current_token}"
+    if symbol and type(symbol) is list:
+      assert self.tokenizer.symbol() and self.tokenizer.current_token in symbol, f"Expected one of symbols {symbol} but found: {self.tokenizer.current_token}"
+    elif symbol:
+      assert self.tokenizer.symbol() and self.tokenizer.current_token == symbol, f"Expected symbol \"{symbol}\" but found: {self.tokenizer.current_token}"
     else:
       assert self.tokenizer.symbol(), f"Expected a symbol but found: {self.tokenizer.current_token}"
 
-
-  ###################################################
-  # MISCELLANEOUS
-  ###################################################
-
-
-  def add_to_xml(self, tag):
-    spacing = " " * XML_SPACING * self.depth
-
-    return f"\n{spacing}{tag}"
-
-
-  def add_xml_for_current_token(self):
-    spacing = " " * XML_SPACING * self.depth
-
-    return f"\n{spacing}{self.tokenizer.current_token_xml()}"
 
 
   ###################################################
@@ -71,277 +58,184 @@ class CompilationEngine:
 
 
   def compile_class(self):
-    class_body = "<class>"
+    self.assert_keyword('class')
 
-    self.depth += 1
-
-    # Add class keyword to XML.
-    class_body += self.add_xml_for_current_token()
-
-    # Add class name to XML.
+    # Class Name
     self.tokenizer.advance()
     self.assert_identifier()
-    class_body += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
     self.assert_symbol('{')
-    class_body += self.add_xml_for_current_token()
 
+    # Class Variables (field, static)
     self.tokenizer.advance()
-
-    # Add any class variable declarations to the XML.
     while self.tokenizer.keyword() and self.tokenizer.current_token in ['field', 'static']:
       self.class_symbol_table.reset()
-      class_body += self.compile_class_var_dec()
+      self.compile_class_var_dec()
       self.tokenizer.advance()
 
-    # Add any class subroutines to the XML.
+    # Subroutines
     while self.tokenizer.keyword() and self.tokenizer.current_token in ['constructor', 'function', 'method']:
       self.subroutine_symbol_table.reset()
-      class_body += self.compile_subroutine_dec()
+      self.compile_subroutine_dec()
       self.tokenizer.advance()
 
     self.assert_symbol('}')
-    class_body += self.add_xml_for_current_token()
-
-    self.depth -= 1
-    assert self.depth == 0
-
-    class_body += "\n</class>\n"
-
-    return class_body
 
 
   def compile_class_var_dec(self):
-    class_var_dec = self.add_to_xml("<classVarDec>")
-
-    self.depth += 1
-
-    # kind (field vs. static)
-    class_var_dec += self.add_xml_for_current_token()
     kind = self.tokenizer.current_token
     self.tokenizer.advance()
 
-    # type
-    class_var_dec += self.add_xml_for_current_token()
     typ = self.tokenizer.current_token
     self.tokenizer.advance()
 
-    # name
-    class_var_dec += self.add_xml_for_current_token()
     name = self.tokenizer.current_token
     self.tokenizer.advance()
 
-    # Update symbol table for class.
     self.class_symbol_table.define(name, typ, kind)
-    class_var_dec += self.add_to_xml("<symbolTable>")
-    self.depth += 1
-    class_var_dec += self.add_to_xml(f"<name>{name}</name>")
-    class_var_dec += self.add_to_xml(f"<type>{self.class_symbol_table.type_of(name)}</type>")
-    class_var_dec += self.add_to_xml(f"<kind>{self.class_symbol_table.kind_of(name)}</kind>")
-    class_var_dec += self.add_to_xml(f"<count>{self.class_symbol_table.index_of(name)}</count>")
-    self.depth -= 1
-    class_var_dec += self.add_to_xml("</symbolTable>")
 
     while self.tokenizer.current_token != ';':
       self.assert_symbol(',')
-      class_var_dec += self.add_xml_for_current_token()
       self.tokenizer.advance()
 
-      # name
-      class_var_dec += self.add_xml_for_current_token()
       name = self.tokenizer.current_token
       self.tokenizer.advance()
 
-      # Update symbol table for class.
       self.class_symbol_table.define(name, typ, kind)
-      class_var_dec += self.add_to_xml("<symbolTable>")
-      self.depth += 1
-      class_var_dec += self.add_to_xml(f"<name>{name}</name>")
-      class_var_dec += self.add_to_xml(f"<type>{self.class_symbol_table.type_of(name)}</type>")
-      class_var_dec += self.add_to_xml(f"<kind>{self.class_symbol_table.kind_of(name)}</kind>")
-      class_var_dec += self.add_to_xml(f"<count>{self.class_symbol_table.index_of(name)}</count>")
-      self.depth -= 1
-      class_var_dec += self.add_to_xml("</symbolTable>")
-
-    class_var_dec += self.add_xml_for_current_token()
-
-    self.depth -= 1
-
-    class_var_dec += self.add_to_xml("</classVarDec>")
-
-    return class_var_dec
 
 
   def compile_do(self):
-    do_statement = self.add_to_xml("<doStatement>")
+    self.assert_keyword('do')
 
-    self.depth += 1
-
-    # Add do keyword to XML.
-    do_statement += self.add_xml_for_current_token()
-
-    # Add subroutine call to XML.
     self.tokenizer.advance()
-    do_statement += self.compile_subroutine_call()
+    self.compile_subroutine_call()
 
     self.tokenizer.advance()
     self.assert_symbol(';')
-    do_statement += self.add_xml_for_current_token()
-
-    self.depth -= 1
-
-    do_statement += self.add_to_xml("</doStatement>")
-
-    return do_statement
 
 
   def compile_expression(self):
-    expression = self.add_to_xml("<expression>")
-
-    self.depth += 1
-
-    expression += self.compile_term()
+    self.compile_term()
 
     self.tokenizer.advance()
 
     if self.tokenizer.op():
-      expression += self.add_xml_for_current_token()
+      # TODO: Handle op.
 
       self.tokenizer.advance()
-      expression += self.compile_term()
+      self.compile_term()
 
       self.tokenizer.advance()
-
-    self.depth -= 1
-
-    expression += self.add_to_xml("</expression>")
-
-    return expression
 
 
   def compile_expression_list(self):
-    expression_list = self.add_to_xml("<expressionList>")
-
-    self.depth += 1
-
     while self.tokenizer.current_token not in [')', '}']:
       if self.tokenizer.current_token == ',':
-        expression_list += self.add_xml_for_current_token()
         self.tokenizer.advance()
       else:
-        expression_list += self.compile_expression()
-
-    self.depth -= 1
-
-    expression_list += self.add_to_xml("</expressionList>")
-
-    return expression_list
+        self.compile_expression()
 
 
-  def compile_if_statement(self):
-    if_statement = self.add_to_xml("<ifStatement>")
+  # def compile_if_statement(self):
+  #   if_statement = self.add_to_xml("<ifStatement>")
 
-    self.depth += 1
+  #   self.depth += 1
 
-    # Add if keyword to XML.
-    if_statement += self.add_xml_for_current_token()
+  #   # Add if keyword to XML.
+  #   if_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    self.assert_symbol('(')
-    if_statement += self.add_xml_for_current_token()
+  #   self.tokenizer.advance()
+  #   self.assert_symbol('(')
+  #   if_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    if_statement += self.compile_expression()
+  #   self.tokenizer.advance()
+  #   if_statement += self.compile_expression()
 
-    self.assert_symbol(')')
-    if_statement += self.add_xml_for_current_token()
+  #   self.assert_symbol(')')
+  #   if_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    self.assert_symbol('{')
-    if_statement += self.add_xml_for_current_token()
+  #   self.tokenizer.advance()
+  #   self.assert_symbol('{')
+  #   if_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    if_statement += self.compile_statements()
+  #   self.tokenizer.advance()
+  #   if_statement += self.compile_statements()
 
-    self.assert_symbol('}')
-    if_statement += self.add_xml_for_current_token()
+  #   self.assert_symbol('}')
+  #   if_statement += self.add_xml_for_current_token()
 
-    if self.tokenizer.peek() == 'else':
-      self.tokenizer.advance()
-      if_statement += self.add_xml_for_current_token()
+  #   if self.tokenizer.peek() == 'else':
+  #     self.tokenizer.advance()
+  #     if_statement += self.add_xml_for_current_token()
 
-      self.tokenizer.advance()
-      self.assert_symbol('{')
-      if_statement += self.add_xml_for_current_token()
+  #     self.tokenizer.advance()
+  #     self.assert_symbol('{')
+  #     if_statement += self.add_xml_for_current_token()
 
-      self.tokenizer.advance()
-      if_statement += self.compile_statements()
+  #     self.tokenizer.advance()
+  #     if_statement += self.compile_statements()
 
-      self.assert_symbol('}')
-      if_statement += self.add_xml_for_current_token()
+  #     self.assert_symbol('}')
+  #     if_statement += self.add_xml_for_current_token()
 
-    self.depth -= 1
+  #   self.depth -= 1
 
-    if_statement += self.add_to_xml("</ifStatement>")
+  #   if_statement += self.add_to_xml("</ifStatement>")
 
-    return if_statement
+  #   return if_statement
 
 
-  def compile_let(self):
-    let_statement = self.add_to_xml("<letStatement>")
+  # def compile_let(self):
+  #   let_statement = self.add_to_xml("<letStatement>")
 
-    self.depth += 1
+  #   self.depth += 1
 
-    # Add let keyword to XML.
-    let_statement += self.add_xml_for_current_token()
+  #   # Add let keyword to XML.
+  #   let_statement += self.add_xml_for_current_token()
 
-    # Add variable to XML.
-    self.tokenizer.advance()
-    self.assert_identifier()
-    let_statement += self.add_xml_for_current_token()
+  #   # Add variable to XML.
+  #   self.tokenizer.advance()
+  #   self.assert_identifier()
+  #   let_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    self.assert_symbol()
+  #   self.tokenizer.advance()
+  #   self.assert_symbol()
 
-    if self.tokenizer.current_token == '[':
-      let_statement += self.add_xml_for_current_token()
+  #   if self.tokenizer.current_token == '[':
+  #     let_statement += self.add_xml_for_current_token()
 
-      self.tokenizer.advance()
-      let_statement += self.compile_expression()
+  #     self.tokenizer.advance()
+  #     let_statement += self.compile_expression()
 
-      self.assert_symbol(']')
-      let_statement += self.add_xml_for_current_token()
+  #     self.assert_symbol(']')
+  #     let_statement += self.add_xml_for_current_token()
 
-      self.tokenizer.advance()
+  #     self.tokenizer.advance()
 
-    self.assert_symbol('=')
-    let_statement += self.add_xml_for_current_token()
+  #   self.assert_symbol('=')
+  #   let_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    let_statement += self.compile_expression()
+  #   self.tokenizer.advance()
+  #   let_statement += self.compile_expression()
 
-    self.assert_symbol(';')
-    let_statement += self.add_xml_for_current_token()
+  #   self.assert_symbol(';')
+  #   let_statement += self.add_xml_for_current_token()
 
-    self.depth -= 1
+  #   self.depth -= 1
 
-    let_statement += self.add_to_xml("</letStatement>")
+  #   let_statement += self.add_to_xml("</letStatement>")
 
-    return let_statement
+  #   return let_statement
 
 
   def compile_parameter_list(self):
-    parameter_list = self.add_to_xml("<parameterList>")
-    self.depth += 1
-
     param_content = []
 
     while self.tokenizer.current_token != ')':
       if self.tokenizer.current_token != ',':
         param_content.append(self.tokenizer.current_token)
 
-      parameter_list += self.add_xml_for_current_token()
       self.tokenizer.advance()
 
     typ = None
@@ -354,57 +248,32 @@ class CompilationEngine:
       else:
         name = val
         self.subroutine_symbol_table.define(name, typ, 'argument')
-        parameter_list += self.add_to_xml("<symbolTable>")
-        self.depth += 1
-        parameter_list += self.add_to_xml(f"<name>{name}</name>")
-        parameter_list += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of(name)}</type>")
-        parameter_list += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of(name)}</kind>")
-        parameter_list += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of(name)}</count>")
-        self.depth -= 1
-        parameter_list += self.add_to_xml("</symbolTable>")
         typ = None
-
-    self.depth -= 1
-    parameter_list += self.add_to_xml("</parameterList>")
-
-    return parameter_list
 
 
   def compile_return(self):
-    return_statement = self.add_to_xml("<returnStatement>")
-
-    self.depth += 1
-
-    # Add return keyword to XML.
-    return_statement += self.add_xml_for_current_token()
+    self.assert_keyword('return')
 
     self.tokenizer.advance()
 
     if self.tokenizer.current_token != ';':
-      return_statement += self.compile_expression()
+      self.compile_expression()
 
     self.assert_symbol(';')
-    return_statement += self.add_xml_for_current_token()
-
-    self.depth -= 1
-
-    return_statement += self.add_to_xml("</returnStatement>")
-
-    return return_statement
 
 
   def compile_statement(self):
     if self.tokenizer.current_token == 'do':
       return self.compile_do()
 
-    if self.tokenizer.current_token == 'let':
-      return self.compile_let()
+    # if self.tokenizer.current_token == 'let':
+    #   return self.compile_let()
 
-    if self.tokenizer.current_token == 'if':
-      return self.compile_if_statement()
+    # if self.tokenizer.current_token == 'if':
+    #   return self.compile_if_statement()
 
-    if self.tokenizer.current_token == 'while':
-      return self.compile_while_statement()
+    # if self.tokenizer.current_token == 'while':
+    #   return self.compile_while_statement()
 
     if self.tokenizer.current_token == 'return':
       return self.compile_return()
@@ -413,177 +282,112 @@ class CompilationEngine:
 
 
   def compile_statements(self):
-    statements = self.add_to_xml("<statements>")
-
-    self.depth += 1
-
     while self.tokenizer.current_token != '}':
       if self.tokenizer.symbol():
-        statements += self.add_xml_for_current_token()
+        pass
       else:
-        statements += self.compile_statement()
+        self.compile_statement()
 
       self.tokenizer.advance()
-
-    self.depth -= 1
-
-    statements += self.add_to_xml("</statements>")
-
-    return statements
 
 
   def compile_subroutine_body(self):
-    subroutine_body = self.add_to_xml("<subroutineBody>")
-
-    self.depth += 1
-
     self.tokenizer.advance()
     self.assert_symbol('{')
-    subroutine_body += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
-
     while self.tokenizer.current_token == 'var':
-      subroutine_body += self.compile_var_dec()
+      self.compile_var_dec()
       self.tokenizer.advance()
 
-    subroutine_body += self.compile_statements()
+    self.compile_statements()
 
     self.assert_symbol('}')
-    subroutine_body += self.add_xml_for_current_token()
-
-    self.depth -= 1
-
-    subroutine_body += self.add_to_xml("</subroutineBody>")
-
-    return subroutine_body
 
 
   def compile_subroutine_call(self):
-    subroutine_call = ""
-
+    # Subroutine name OR class name
     self.assert_identifier()
-    subroutine_call += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
-    self.assert_symbol()
+    self.assert_symbol(['(', '.'])
 
+    # If current token is period, this is a method call, e.g. obj.doThing().
     if self.tokenizer.current_token == '.':
-      subroutine_call += self.add_xml_for_current_token()
-
+      # Method name, e.g. doAThing
       self.tokenizer.advance()
       self.assert_identifier()
-      subroutine_call += self.add_xml_for_current_token()
 
       self.tokenizer.advance()
 
     self.assert_symbol('(')
-    subroutine_call += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
-    subroutine_call += self.compile_expression_list()
+    self.compile_expression_list()
 
     self.assert_symbol(')')
-    subroutine_call += self.add_xml_for_current_token()
-
-    return subroutine_call
 
 
   def compile_subroutine_dec(self):
-    subroutine_dec = self.add_to_xml("<subroutineDec>")
-
-    self.depth += 1
-
-    # Insert the subroutine type (constructor vs. function vs. method).
-    self.assert_keyword()
+    self.assert_keyword(['constructor', 'method', 'function'])
     subroutine_type = self.tokenizer.current_token
-    subroutine_dec += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
     self.assert_return_type()
     return_type = self.tokenizer.current_token
-    subroutine_dec += self.add_xml_for_current_token()
 
-    # Update symbol table for methods.
     if subroutine_type == 'method':
       self.subroutine_symbol_table.define('this', return_type, 'argument')
-      subroutine_dec += self.add_to_xml("<symbolTable>")
-      self.depth += 1
-      subroutine_dec += self.add_to_xml(f"<name> this </name>")
-      subroutine_dec += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of('this')}</type>")
-      subroutine_dec += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of('this')}</kind>")
-      subroutine_dec += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of('this')}</count>")
-      self.depth -= 1
-      subroutine_dec += self.add_to_xml("</symbolTable>")
 
+    # Subroutine name
     self.tokenizer.advance()
     self.assert_identifier()
-    subroutine_dec += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
     self.assert_symbol('(')
-    subroutine_dec += self.add_xml_for_current_token()
 
     self.tokenizer.advance()
-    subroutine_dec += self.compile_parameter_list()
+    self.compile_parameter_list()
 
     # compile_parameter_list() should have already advanced to ")" for us.
     self.assert_symbol(')')
-    subroutine_dec += self.add_xml_for_current_token()
 
-    subroutine_dec += self.compile_subroutine_body()
-
-    self.depth -= 1
-
-    subroutine_dec += self.add_to_xml("</subroutineDec>")
-
-    return subroutine_dec
+    self.compile_subroutine_body()
 
 
   def compile_term(self):
-    term = self.add_to_xml("<term>")
-
-    self.depth += 1
-
     if self.tokenizer.identifier() and self.tokenizer.peek() in ['.', '(', '[']:
       next_token = self.tokenizer.peek()
 
       # Handle identifiers that precede subroutine calls x().
       if next_token in ['.', '(']:
-        term += self.compile_subroutine_call()
+        self.compile_subroutine_call()
 
       # Handle identifiers that precede array accessors x[].
       elif next_token == '[':
-        # Add identifier to XML.
-        term += self.add_xml_for_current_token()
+        # TODO: Handle identifier.
 
         self.tokenizer.advance()
         self.assert_symbol('[')
-        term += self.add_xml_for_current_token()
 
         self.tokenizer.advance()
-        term += self.compile_expression()
+        self.compile_expression()
 
         self.assert_symbol(']')
-        term += self.add_xml_for_current_token()
 
     # Handle unary operations.
     elif self.tokenizer.unary_op():
-      # Add unar operator symbol to XML.
-      term += self.add_xml_for_current_token()
+      # TODO: Handle unary op.
 
       self.tokenizer.advance()
-      term += self.compile_term()
+      self.compile_term()
 
     # Handle parentheses surrounding expressions.
     elif self.tokenizer.current_token == '(':
-      term += self.add_xml_for_current_token()
-
       self.tokenizer.advance()
-      term += self.compile_expression()
+      self.compile_expression()
 
       self.assert_symbol(')')
-      term += self.add_xml_for_current_token()
 
     # Handle:
     # - strings
@@ -591,109 +395,65 @@ class CompilationEngine:
     # - keywords
     # - identifiers that are not function calls x() or array accessors x[]
     else:
-      term += self.add_xml_for_current_token()
-
-    self.depth -= 1
-
-    term += self.add_to_xml("</term>")
-
-    return term
+      # TODO: Handle these
+      pass
 
 
   def compile_var_dec(self):
-    var_dec = self.add_to_xml("<varDec>")
-
-    self.depth += 1
-
-    # kind (var)
-    var_dec += self.add_xml_for_current_token()
-    assert self.tokenizer.current_token == 'var', f"Expected var but found: {self.tokenizer.current_token}"
+    self.assert_keyword('var')
     kind = 'local'
     self.tokenizer.advance()
 
-    # type
-    var_dec += self.add_xml_for_current_token()
     typ = self.tokenizer.current_token
     self.tokenizer.advance()
 
-    # name
-    var_dec += self.add_xml_for_current_token()
     name = self.tokenizer.current_token
     self.tokenizer.advance()
 
-    # Update symbol table for subroutine.
     self.subroutine_symbol_table.define(name, typ, kind)
-    var_dec += self.add_to_xml("<symbolTable>")
-    self.depth += 1
-    var_dec += self.add_to_xml(f"<name>{name}</name>")
-    var_dec += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of(name)}</type>")
-    var_dec += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of(name)}</kind>")
-    var_dec += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of(name)}</count>")
-    self.depth -= 1
-    var_dec += self.add_to_xml("</symbolTable>")
 
     while self.tokenizer.current_token != ';':
       self.assert_symbol(',')
-      var_dec += self.add_xml_for_current_token()
       self.tokenizer.advance()
 
-      # name
-      var_dec += self.add_xml_for_current_token()
       name = self.tokenizer.current_token
       self.tokenizer.advance()
 
-      # Update symbol table for subroutine.
       self.subroutine_symbol_table.define(name, typ, kind)
-      var_dec += self.add_to_xml("<symbolTable>")
-      self.depth += 1
-      var_dec += self.add_to_xml(f"<name>{name}</name>")
-      var_dec += self.add_to_xml(f"<type>{self.subroutine_symbol_table.type_of(name)}</type>")
-      var_dec += self.add_to_xml(f"<kind>{self.subroutine_symbol_table.kind_of(name)}</kind>")
-      var_dec += self.add_to_xml(f"<count>{self.subroutine_symbol_table.index_of(name)}</count>")
-      self.depth -= 1
-      var_dec += self.add_to_xml("</symbolTable>")
-
-    var_dec += self.add_xml_for_current_token()
-
-    self.depth -= 1
-
-    var_dec += self.add_to_xml("</varDec>")
-
-    return var_dec
 
 
-  def compile_while_statement(self):
-    while_statement = self.add_to_xml("<whileStatement>")
+  # def compile_while_statement(self):
+  #   while_statement = self.add_to_xml("<whileStatement>")
 
-    self.depth += 1
+  #   self.depth += 1
 
-    # Add while keyword to XML.
-    while_statement += self.add_xml_for_current_token()
+  #   # Add while keyword to XML.
+  #   while_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    self.assert_symbol('(')
-    while_statement += self.add_xml_for_current_token()
+  #   self.tokenizer.advance()
+  #   self.assert_symbol('(')
+  #   while_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    while_statement += self.compile_expression()
+  #   self.tokenizer.advance()
+  #   while_statement += self.compile_expression()
 
-    self.assert_symbol(')')
-    while_statement += self.add_xml_for_current_token()
+  #   self.assert_symbol(')')
+  #   while_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    self.assert_symbol('{')
-    while_statement += self.add_xml_for_current_token()
+  #   self.tokenizer.advance()
+  #   self.assert_symbol('{')
+  #   while_statement += self.add_xml_for_current_token()
 
-    self.tokenizer.advance()
-    while_statement += self.compile_statements()
+  #   self.tokenizer.advance()
+  #   while_statement += self.compile_statements()
 
-    self.assert_symbol('}')
-    while_statement += self.add_xml_for_current_token()
+  #   self.assert_symbol('}')
+  #   while_statement += self.add_xml_for_current_token()
 
-    self.depth -= 1
+  #   self.depth -= 1
 
-    while_statement += self.add_to_xml("</whileStatement>")
+  #   while_statement += self.add_to_xml("</whileStatement>")
 
-    return while_statement
+  #   return while_statement
 
 
