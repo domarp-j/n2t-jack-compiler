@@ -63,6 +63,7 @@ class CompilationEngine:
     # Class Name
     self.tokenizer.advance()
     self.assert_identifier()
+    class_name = self.tokenizer.current_token
 
     self.tokenizer.advance()
     self.assert_symbol('{')
@@ -77,7 +78,7 @@ class CompilationEngine:
     # Subroutines
     while self.tokenizer.keyword() and self.tokenizer.current_token in ['constructor', 'function', 'method']:
       self.subroutine_symbol_table.reset()
-      self.compile_subroutine_dec()
+      self.compile_subroutine_dec(class_name)
       self.tokenizer.advance()
 
     self.assert_symbol('}')
@@ -121,20 +122,27 @@ class CompilationEngine:
     self.tokenizer.advance()
 
     if self.tokenizer.op():
-      # TODO: Handle op.
+      op = self.tokenizer.current_token
 
       self.tokenizer.advance()
       self.compile_term()
+
+      self.vm_writer.write_binary_op(op)
 
       self.tokenizer.advance()
 
 
   def compile_expression_list(self):
+    expression_count = 0
+
     while self.tokenizer.current_token not in [')', '}']:
       if self.tokenizer.current_token == ',':
         self.tokenizer.advance()
       else:
+        expression_count += 1
         self.compile_expression()
+
+    return expression_count
 
 
   # def compile_if_statement(self):
@@ -258,6 +266,11 @@ class CompilationEngine:
 
     if self.tokenizer.current_token != ';':
       self.compile_expression()
+    else:
+      self.vm_writer.write_pop('temp', 0)
+      self.vm_writer.write_push('constant', 0)
+
+    self.vm_writer.write_return()
 
     self.assert_symbol(';')
 
@@ -291,14 +304,20 @@ class CompilationEngine:
       self.tokenizer.advance()
 
 
-  def compile_subroutine_body(self):
+  def compile_subroutine_body(self, class_name, subroutine_name):
     self.tokenizer.advance()
     self.assert_symbol('{')
 
+    local_count = 0
+
     self.tokenizer.advance()
+
     while self.tokenizer.current_token == 'var':
+      local_count += 1
       self.compile_var_dec()
       self.tokenizer.advance()
+
+    self.vm_writer.write_function(f"{class_name}.{subroutine_name}", local_count)
 
     self.compile_statements()
 
@@ -308,27 +327,33 @@ class CompilationEngine:
   def compile_subroutine_call(self):
     # Subroutine name OR class name
     self.assert_identifier()
+    subroutine_name = self.tokenizer.current_token
 
     self.tokenizer.advance()
     self.assert_symbol(['(', '.'])
 
     # If current token is period, this is a method call, e.g. obj.doThing().
     if self.tokenizer.current_token == '.':
+      subroutine_name += "."
+
       # Method name, e.g. doAThing
       self.tokenizer.advance()
       self.assert_identifier()
+      subroutine_name += self.tokenizer.current_token
 
       self.tokenizer.advance()
 
     self.assert_symbol('(')
 
     self.tokenizer.advance()
-    self.compile_expression_list()
+    arg_count = self.compile_expression_list()
 
     self.assert_symbol(')')
 
+    self.vm_writer.write_call(subroutine_name, arg_count)
 
-  def compile_subroutine_dec(self):
+
+  def compile_subroutine_dec(self, class_name):
     self.assert_keyword(['constructor', 'method', 'function'])
     subroutine_type = self.tokenizer.current_token
 
@@ -339,9 +364,9 @@ class CompilationEngine:
     if subroutine_type == 'method':
       self.subroutine_symbol_table.define('this', return_type, 'argument')
 
-    # Subroutine name
     self.tokenizer.advance()
     self.assert_identifier()
+    subroutine_name = self.tokenizer.current_token
 
     self.tokenizer.advance()
     self.assert_symbol('(')
@@ -352,7 +377,7 @@ class CompilationEngine:
     # compile_parameter_list() should have already advanced to ")" for us.
     self.assert_symbol(')')
 
-    self.compile_subroutine_body()
+    self.compile_subroutine_body(class_name, subroutine_name)
 
 
   def compile_term(self):
@@ -389,11 +414,18 @@ class CompilationEngine:
 
       self.assert_symbol(')')
 
+    # Handle integers
+    elif self.tokenizer.int_val():
+      self.vm_writer.write_push("constant", self.tokenizer.current_token)
+
+    # Handle identifiers that are not function calls x() or array accessors x[]
+    elif self.tokenizer.identifier():
+      # TODO: Handle this
+      pass
+
     # Handle:
     # - strings
-    # - integers
     # - keywords
-    # - identifiers that are not function calls x() or array accessors x[]
     else:
       # TODO: Handle these
       pass

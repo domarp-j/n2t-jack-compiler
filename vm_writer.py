@@ -21,7 +21,7 @@ class VMWriter:
 
   def write_push(self, segment, index):
     assert segment in [
-      "const",
+      "constant",
       "arg",
       "local",
       "static",
@@ -48,7 +48,30 @@ class VMWriter:
     self.write(f"pop {segment} {index}")
 
 
-  def write_arithmetic(self, command):
+  def write_binary_op(self, op):
+    if op == '+':
+      self.write_command('add')
+    elif op == '-':
+      self.write_command('sub')
+    elif op == '*':
+      self.write_call('Math.multiply', 2)
+    elif op == '/':
+      self.write_call('Math.divide', 2)
+    elif op == '=':
+      self.write_command('eq')
+    elif op == '>':
+      self.write_command('gt')
+    elif op == '<':
+      self.write_command('lt')
+    elif op == '&':
+      self.write_command('and')
+    elif op == '|':
+      self.write_command('or')
+    else:
+      raise AssertionError(f"Unrecognized op: {op}")
+
+
+  def write_command(self, command):
     assert command in [
       "add",
       "sub",
