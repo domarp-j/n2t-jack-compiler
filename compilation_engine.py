@@ -231,7 +231,10 @@ class CompilationEngine:
 
     self.assert_symbol(';')
 
-    self.vm_writer.write_pop(self.subroutine_symbol_table.kind_of(name), self.subroutine_symbol_table.index_of(name))
+    self.vm_writer.write_pop(
+      self.subroutine_symbol_table.kind_of(name),
+      self.subroutine_symbol_table.index_of(name)
+    )
 
 
   def compile_parameter_list(self):
