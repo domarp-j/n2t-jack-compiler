@@ -115,6 +115,10 @@ class CompilationEngine:
     self.tokenizer.advance()
     self.assert_symbol(';')
 
+    # do subroutine calls always return *something*.
+    # We need to dump this return value immediately, since we'll never use it.
+    self.vm_writer.write_pop('temp', 0)
+
 
   def compile_expression(self):
     self.compile_term()
@@ -267,7 +271,6 @@ class CompilationEngine:
     if self.tokenizer.current_token != ';':
       self.compile_expression()
     else:
-      self.vm_writer.write_pop('temp', 0)
       self.vm_writer.write_push('constant', 0)
 
     self.vm_writer.write_return()
