@@ -8,18 +8,41 @@ from symbol_table import SymbolTable
 
 class CompilationEngine:
   def __init__(self, tokenizer, vm_writer):
+    # We will use the passed-in JackTokenizer to parse the given Jack code.
     self.tokenizer = tokenizer
+
+    # We will use the passed-in VMWriter to write our compiled VM code.
+    # The VMWriter instance should have already create the .vm file for us.
     self.vm_writer = vm_writer
 
+    # When handling Jack variable declarations, you need two symbol tables:
+    # - a SymbolTable for the class scope, and
+    # - a SymbolTable for the subroutine scope.
     self.class_symbol_table = SymbolTable()
     self.subroutine_symbol_table = SymbolTable()
 
+    # Even though a class can contain multiple different subroutines,
+    # we only ever need one subroutine symbol table.
+    #
+    # We can simply reset the subroutine symbol table
+    # every time we encounter a new subroutine!
+
+    # We will use simple counters to create distinct labels
+    # for each if/while statement in the compiled VM code.
     self.if_counter = 0
     self.while_counter = 0
 
+    # We'll need to track a subroutine's type as we parse it.
+    # Its value is always one of ["function", "method", "constructor"].
+    self.subroutine_type = None
+
 
   def run(self):
+    # Advance to the first token in the .jack file.
+    # This should always be "class".
     self.tokenizer.advance()
+
+    # Let's get started!
     return self.compile_class()
 
 
@@ -63,7 +86,7 @@ class CompilationEngine:
   def compile_class(self):
     self.assert_keyword('class')
 
-    # Class Name
+    # Advance to the next token, which should be the class name.
     self.tokenizer.advance()
     self.assert_identifier()
     class_name = self.tokenizer.current_token
@@ -71,16 +94,23 @@ class CompilationEngine:
     self.tokenizer.advance()
     self.assert_symbol('{')
 
-    # Class Variables (field, static)
+    # We reset the class-level symbol table on the off-chance that
+    # there are multiple classes defined in a .jack file.
+    self.class_symbol_table.reset()
+
+    # At this point, we may encounter class-level field or static variables.
+    # We will compile those as needed.
     self.tokenizer.advance()
     while self.tokenizer.keyword() and self.tokenizer.current_token in ['field', 'static']:
-      self.class_symbol_table.reset()
       self.compile_class_var_dec()
       self.tokenizer.advance()
 
-    # Subroutines
+    # We will compile each class's subroutines one at a time.
     while self.tokenizer.keyword() and self.tokenizer.current_token in ['constructor', 'function', 'method']:
+      # We can safely reset the subroutine-level symbol table for each new subroutine.
+      # There's no need to keep the old table.
       self.subroutine_symbol_table.reset()
+
       self.compile_subroutine_dec(class_name)
       self.tokenizer.advance()
 
@@ -88,17 +118,26 @@ class CompilationEngine:
 
 
   def compile_class_var_dec(self):
+    # We will store the variable kind, which should always be one of ['field', 'static'].
+    self.assert_keyword(['field', 'static'])
     kind = self.tokenizer.current_token
     self.tokenizer.advance()
 
+    # We'll also keep track of the variable's type.
     typ = self.tokenizer.current_token
     self.tokenizer.advance()
 
+    # We'll need the variable's name, of course, to populate the symbol table.
     name = self.tokenizer.current_token
     self.tokenizer.advance()
 
+    # We now have everything we need to update the class-level symbol table,
+    # so let's do that!
     self.class_symbol_table.define(name, typ, kind)
 
+    # It's completely possible that the programmer used comma-separated variable decs.
+    # Example: field int x, y, z;
+    # We will anticipate this and populate the symbol table accordingly.
     while self.tokenizer.current_token != ';':
       self.assert_symbol(',')
       self.tokenizer.advance()
@@ -231,10 +270,18 @@ class CompilationEngine:
 
     self.assert_symbol(';')
 
-    self.vm_writer.write_pop(
-      self.subroutine_symbol_table.kind_of(name),
-      self.subroutine_symbol_table.index_of(name)
-    )
+    if self.subroutine_symbol_table.has_name(name):
+      self.vm_writer.write_pop(
+        self.subroutine_symbol_table.kind_of(name),
+        self.subroutine_symbol_table.index_of(name)
+      )
+    elif self.class_symbol_table.has_name(name):
+      kind = self.class_symbol_table.kind_of(name)
+      kind = "this" if kind == "field" else kind
+
+      self.vm_writer.write_pop(kind, self.class_symbol_table.index_of(name))
+    else:
+      raise AssertionError(f"Undeclared variable found: {name}")
 
 
   def compile_parameter_list(self):
@@ -264,14 +311,17 @@ class CompilationEngine:
 
     self.tokenizer.advance()
 
-    if self.tokenizer.current_token != ';':
+    if self.tokenizer.keyword() and self.tokenizer.current_token == "this":
+      self.vm_writer.write_push('pointer', 0)
+      self.tokenizer.advance()
+    elif self.tokenizer.current_token != ';':
       self.compile_expression()
     else:
       self.vm_writer.write_push('constant', 0)
 
-    self.vm_writer.write_return()
-
     self.assert_symbol(';')
+
+    self.vm_writer.write_return()
 
 
   def compile_statement(self):
@@ -304,63 +354,166 @@ class CompilationEngine:
 
 
   def compile_subroutine_body(self, class_name, subroutine_name):
+    # First, we'll do a sanity check and look for a left brace.
+    # A left brace symbol indicates the start of a block of statements.
     self.tokenizer.advance()
     self.assert_symbol('{')
 
+    # A function declaration in VM code has the format:
+    # function MyClass.method local_count
+    # We need to know the number of local variables in the function.
+    # Let's initialize the local count.
     local_count = 0
 
     self.tokenizer.advance()
 
+    # We'll now check for any local variable declarations.
+    #
+    # We'll compile each declaration we find and update the running tally
+    # of our local count.
     while self.tokenizer.current_token == 'var':
       local_count += self.compile_var_dec()
       self.tokenizer.advance()
 
+    # With the class name, subroutine name, and local count on hand,
+    # we can finally declare our function in VM bytecode.
     self.vm_writer.write_function(f"{class_name}.{subroutine_name}", local_count)
 
+    # Edge case!
+    if self.subroutine_type == 'constructor':
+      # If we're compiling a constructor, we'll need to do some initialization
+      # before compiling any statements.
+
+      # First, we'll use Memory.alloc() to allocate memory for the new object.
+      field_count = self.class_symbol_table.var_count('field')
+      self.vm_writer.write_push("constant", field_count)
+      self.vm_writer.write_call("Memory.alloc", 1)
+
+      # We will then anchor _this_ to the THIS base address.
+      self.vm_writer.write_pop("pointer", 0)
+
+    # Another edge case!
+    elif self.subroutine_type == "method":
+      # Since we're in a method, we need to initialize _this_ to the current object.
+      # We can use our recently-updated symbol table to do this.
+      # First, let's push the first argument _this_ onto the stack.
+      self.vm_writer.write_push("argument", 0)
+
+      # Next, we must immediately pop this value from the stack
+      # and store it at the THIS address in memory.
+      self.vm_writer.write_pop("pointer", 0)
+
+      # Now the compiled code can access the object's fields.
+
+    # We'll now compile every statement inside of the subroutine.
     self.compile_statements()
 
+    # Finally, we'll do another sanity check to ensure we've hit the
+    # end of our statement block.
     self.assert_symbol('}')
 
 
   def compile_subroutine_call(self):
-    # Subroutine name OR class name
+    # We'll keep a running tally of the argument count.
+    # This is required for the call VM code.
+    # Example: call {subroutine_name} {arg_count}
+    arg_count = 0
+
+    # First, let's make sure that the current token is an identifier.
     self.assert_identifier()
-    subroutine_name = self.tokenizer.current_token
+
+    # This identifier can be one of the following:
+    # - a subroutine name, such as doAThing in doAThing()
+    # - a class name, such as MyClass in MyClass.doAThing()
+    # - an object, such as myObj in myObj.doAThing()
+    #
+    # We'll store it for future use.
+    name = self.tokenizer.current_token
 
     self.tokenizer.advance()
     self.assert_symbol(['(', '.'])
 
-    # If current token is period, this is a method call, e.g. obj.doThing()
-    # If not, then its simply a function call, e.g. doAThing()
+    # If the current token is a '.', this is a method call.
+    #
+    # At this point in time, the name is either a class name or an object,
+    # like MyClass or myObj.
     if self.tokenizer.current_token == '.':
-      subroutine_name += "."
+      obj_in_sub_symbol_table = self.subroutine_symbol_table.has_name(name)
+      obj_in_class_symbol_table = self.class_symbol_table.has_name(name)
 
-      # Method name, e.g. doAThing in obj.doAThing()
+      # If the current token is an object, we need to do something special.
+      # Specifically, we need to push the current object onto the stack.
+      #
+      # In a sense, we're converting our object-oriented Jack code into
+      # procedural code.
+      #
+      # myObj.doAThing(a, b) -> doAThing(myObj, a, b)
+      #
+      # From a VM perspective, the procedural version is easier to compile.
+      if obj_in_sub_symbol_table or obj_in_class_symbol_table:
+        arg_count += 1
+
+        # First, we'll for the object identifier in the subroutine symbol table.
+        if obj_in_sub_symbol_table:
+          # Push the object to the stack.
+          self.vm_writer.write_push(
+            self.subroutine_symbol_table.kind_of(name),
+            self.subroutine_symbol_table.index_of(name)
+          )
+
+          # We'll need to replace our current name with the object's type (aka class).
+          name = self.subroutine_symbol_table.type_of(name)
+
+        # Next, we'll check for the object identifier in the class symbol table.
+        elif obj_in_class_symbol_table:
+          kind = self.class_symbol_table.kind_of(name)
+          kind = "this" if kind == "field" else kind
+
+          # Push the object to the stack.
+          self.vm_writer.write_push(
+            kind,
+            self.class_symbol_table.index_of(name)
+          )
+
+          # We'll need to replace our current name with the object's type (aka class).
+          name = self.class_symbol_table.type_of(name)
+
+      name += "."
+
+      # At this point, we can be confident that we're at the method name.
       self.tokenizer.advance()
       self.assert_identifier()
-      subroutine_name += self.tokenizer.current_token
+      name += self.tokenizer.current_token
 
       self.tokenizer.advance()
 
     self.assert_symbol('(')
 
+    # We'll need to compile every expression inside of the subroutine call.
+    #
+    # We'll also get the number of expressions in the call,
+    # which will increase our argument counter.
+    #
+    # Example: myObj.doAThing(exp1, exp2, exp3...)
     self.tokenizer.advance()
-    arg_count = self.compile_expression_list()
+    arg_count += self.compile_expression_list()
 
     self.assert_symbol(')')
 
-    self.vm_writer.write_call(subroutine_name, arg_count)
+    # FINALLY, we can write our VM code!
+    self.vm_writer.write_call(name, arg_count)
 
 
   def compile_subroutine_dec(self, class_name):
     self.assert_keyword(['constructor', 'method', 'function'])
-    subroutine_type = self.tokenizer.current_token
+    self.subroutine_type = self.tokenizer.current_token
 
     self.tokenizer.advance()
     self.assert_return_type()
     return_type = self.tokenizer.current_token
 
-    if subroutine_type == 'method':
+    # Update subroutine symbol table with object reference, aka this.
+    if self.subroutine_type == 'method':
       self.subroutine_symbol_table.define('this', return_type, 'argument')
 
     self.tokenizer.advance()
@@ -380,14 +533,31 @@ class CompilationEngine:
 
 
   def compile_term(self):
+    # We need to compile each individual term to VM code as needed.
+    #
+    # The definition for "term" in this context is quite broad,
+    # so bear with me as we go through each possible term!
+
+    # First, if we have an identifier on our hands, we'll need to peek one token ahead.
+    #
+    # The token ahead could be one of the following:
+    # - a period, indicating that the identifier is a class name or object
+    # - a left parens, indicating that the identifier is a subroutine
+    # - a left bracket, indiciating that the identifier is an array
     if self.tokenizer.identifier() and self.tokenizer.peek() in ['.', '(', '[']:
       next_token = self.tokenizer.peek()
 
-      # Handle identifiers that precede subroutine calls x().
+      # The next token is either a period or left parens,
+      # which means we're in a subroutine call!
+      #
+      # Examples: Memory.alloc(), myObj.doAThing(), doSomethingElse()
       if next_token in ['.', '(']:
         self.compile_subroutine_call()
 
-      # Handle identifiers that precede array accessors x[].
+      # The next token is a left bracket, which means
+      # we're trying to access an array.
+      #
+      # Examples: myArray[3], myArray[x + (y - 2)]
       elif next_token == '[':
         # TODO: Handle identifier.
 
@@ -399,7 +569,10 @@ class CompilationEngine:
 
         self.assert_symbol(']')
 
-    # Handle unary operations.
+    # Let's check if the current token is a unary operation,
+    # such as "-" (negate, or neg) or "~" (not).
+    #
+    # Examples: -3, ~(~(x))
     elif self.tokenizer.unary_op():
       unary_op = self.tokenizer.current_token
 
@@ -408,39 +581,54 @@ class CompilationEngine:
 
       self.vm_writer.write_unary_op(unary_op)
 
-    # Handle parentheses surrounding expressions.
+    # We can always have expressions inside of parentheses.
+    # We can treat this like its own term.
+    # Examples: (x + 3), ((x + 2) > 9)
     elif self.tokenizer.current_token == '(':
       self.tokenizer.advance()
       self.compile_expression()
 
       self.assert_symbol(')')
 
-    # Handle integers
+    # Now we've reached some simpler terms!
+    # If we encounter a number, we simply write "push constant {number}".
     elif self.tokenizer.int_val():
       self.vm_writer.write_push("constant", self.tokenizer.current_token)
 
-    # Handling keywords
+    # We need to consider some special keywords.
+    # Most of keywords ultimately resolve to simple "push constant" VM commands.
+    # However, we want
     elif self.tokenizer.keyword():
       if self.tokenizer.current_token in ["null", "false"]:
         self.vm_writer.write_push("constant", 0)
       elif self.tokenizer.current_token == "true":
         self.vm_writer.write_push("constant", 1)
         self.vm_writer.write_command("neg")
-      else:
-        raise AssertionError(f"Unrecognized keyword expression: {self.tokenizer.current_token}")
 
-    # Handle identifiers that are not function calls x() or array accessors x[]
+    # If we have an identifer at this point, we can safely assume that
+    # its a standalone variable, not part of a subroutine call or array access.
+    #
+    # We will leverage our symbol tables to write the VM code here.
     elif self.tokenizer.identifier():
       name = self.tokenizer.current_token
 
+      # First, let's check the subroutine symbol table for the identifier.
       if self.subroutine_symbol_table.has_name(name):
+        # If we find it, we can now write the VM push code.
         self.vm_writer.write_push(
           self.subroutine_symbol_table.kind_of(name),
           self.subroutine_symbol_table.index_of(name)
         )
+
+      # Next, we'll check the class symbol table for the identifier.
       elif self.class_symbol_table.has_name(name):
+        # We need to make a small tweak to address _field_s.
+        kind = self.class_symbol_table.kind_of(name)
+        kind = "this" if kind == "field" else kind
+
+        # We can now write the VM push code.
         self.vm_writer.write_push(
-          self.class_symbol_table.kind_of(name),
+          kind,
           self.class_symbol_table.index_of(name)
         )
       else:
