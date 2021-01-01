@@ -126,12 +126,12 @@ class CompilationEngine:
     self.tokenizer.advance()
 
     if self.tokenizer.op():
-      op = self.tokenizer.current_token
+      binary_op = self.tokenizer.current_token
 
       self.tokenizer.advance()
       self.compile_term()
 
-      self.vm_writer.write_binary_op(op)
+      self.vm_writer.write_binary_op(binary_op)
 
       self.tokenizer.advance()
 
@@ -405,10 +405,12 @@ class CompilationEngine:
 
     # Handle unary operations.
     elif self.tokenizer.unary_op():
-      # TODO: Handle unary op.
+      unary_op = self.tokenizer.current_token
 
       self.tokenizer.advance()
       self.compile_term()
+
+      self.vm_writer.write_unary_op(unary_op)
 
     # Handle parentheses surrounding expressions.
     elif self.tokenizer.current_token == '(':
@@ -420,6 +422,15 @@ class CompilationEngine:
     # Handle integers
     elif self.tokenizer.int_val():
       self.vm_writer.write_push("constant", self.tokenizer.current_token)
+
+    # Handling keywords
+    elif self.tokenizer.keyword():
+      if self.tokenizer.current_token in ["null", "false"]:
+        self.vm_writer.write_push("constant", 0)
+      elif self.tokenizer.current_token == "true":
+        self.vm_writer.write_push("constant", -1)
+      else:
+        raise AssertionError(f"Unrecognized keyword expression: {self.tokenizer.current_token}")
 
     # Handle identifiers that are not function calls x() or array accessors x[]
     elif self.tokenizer.identifier():

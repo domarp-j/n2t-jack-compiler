@@ -68,7 +68,16 @@ class VMWriter:
     elif op == '|':
       self.write_command('or')
     else:
-      raise AssertionError(f"Unrecognized op: {op}")
+      raise AssertionError(f"Unrecognized binary op: {op}")
+
+
+  def write_unary_op(self, op):
+    if op == '-':
+      self.write_command('neg')
+    elif op == '~':
+      self.write_command('not')
+    else:
+      raise AssertionError(f"Unrecognized unary op: {op}")
 
 
   def write_command(self, command):
