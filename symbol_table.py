@@ -45,14 +45,20 @@ class SymbolTable:
 
 
   def kind_of(self, name):
+    self.assert_name_exists(name)
+
     return self.table[name]["kind"]
 
 
   def type_of(self, name):
+    self.assert_name_exists(name)
+
     return self.table[name]["type"]
 
 
   def index_of(self, name):
+    self.assert_name_exists(name)
+
     return self.table[name]["count"]
 
 
@@ -67,6 +73,10 @@ class SymbolTable:
       "argument": 0,
       "local": 0
     }
+
+
+  def assert_name_exists(self, name):
+    assert self.has_name(name), f"Unrecognized name in symbol table: {name}"
 
 
   def assert_valid_kind(self, kind):
