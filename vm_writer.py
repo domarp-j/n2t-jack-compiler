@@ -22,7 +22,7 @@ class VMWriter:
   def write_push(self, segment, index):
     assert segment in [
       "constant",
-      "arg",
+      "argument",
       "local",
       "static",
       "this",
@@ -36,7 +36,7 @@ class VMWriter:
 
   def write_pop(self, segment, index):
     assert segment in [
-      "arg",
+      "argument",
       "local",
       "static",
       "this",

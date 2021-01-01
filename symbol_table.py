@@ -56,6 +56,10 @@ class SymbolTable:
     return self.table[name]["count"]
 
 
+  def has_name(self, name):
+    return name in self.table
+
+
   def reset_kind_count(self):
     self.kind_count = {
       "field": 0,
