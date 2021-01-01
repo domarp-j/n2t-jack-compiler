@@ -157,8 +157,9 @@ class CompilationEngine:
     self.tokenizer.advance()
     self.assert_symbol(';')
 
-    # do subroutine calls always return *something*.
-    # We need to dump this return value immediately, since we'll never use it.
+    # Subroutine calls always return *something*.
+    # However, by using a do-statment, we're choosing to do nothing with the return value.
+    # Le'ts dump this return value immediately, since we'll never use it.
     self.vm_writer.write_pop('temp', 0)
 
 
@@ -194,7 +195,7 @@ class CompilationEngine:
   def compile_if_statement(self):
     self.assert_keyword('if')
 
-    # Increment if_counter for VM labeling.
+    # Let's increment the if_counter for VM labeling.
     self.if_counter += 1
 
     label_1 = f"IF-STATEMENT-{self.if_counter}-A"
@@ -203,29 +204,29 @@ class CompilationEngine:
     self.tokenizer.advance()
     self.assert_symbol('(')
 
-    # Write if-statement's expression to VM.
+    # First, we'll write the if-statement's expression to VM.
     self.tokenizer.advance()
     self.compile_expression()
 
     self.assert_symbol(')')
 
-    # Write not and if-goto to label 1.
+    # Next, we'll write the not and if-goto statements to label 1.
     self.vm_writer.write_command('not')
     self.vm_writer.write_if(label_1)
 
     self.tokenizer.advance()
     self.assert_symbol('{')
 
-    # Write statements in if-block.
+    # We'll compile each statement in the if-block.
     self.tokenizer.advance()
     self.compile_statements()
 
     self.assert_symbol('}')
 
-    # Write goto to label 2.
+    # We will writ ethe goto to label 2.
     self.vm_writer.write_goto(label_2)
 
-    # Write label 1.
+    # We'll write the VM code for label 1.
     self.vm_writer.write_label(label_1)
 
     if self.tokenizer.peek() == 'else':
@@ -234,13 +235,13 @@ class CompilationEngine:
       self.tokenizer.advance()
       self.assert_symbol('{')
 
-      # Write statements in else-block, if available.
+      # If we find an else statement, we'll need to compile its statements as well.
       self.tokenizer.advance()
       self.compile_statements()
 
       self.assert_symbol('}')
 
-    # Write label 2.
+    # Finally, we'll write the VM code for label 2.
     self.vm_writer.write_label(label_2)
 
 
@@ -285,6 +286,7 @@ class CompilationEngine:
 
 
   def compile_parameter_list(self):
+    # We'll keep a running list of the contents inside of a subroutine's params.
     param_content = []
 
     while self.tokenizer.current_token != ')':
@@ -295,6 +297,10 @@ class CompilationEngine:
 
     typ = None
 
+    # By this point, we'll likely have a series of tokens with alternating types and identifiers.
+    # Example: ["int", "x", "char", "y"]
+    # We'll need to populate the symbol table with the params we found.
+    # We *should* have (len(param_content) / 2) params total.
     while len(param_content) > 0:
       val = param_content.pop(0)
 
@@ -312,11 +318,18 @@ class CompilationEngine:
     self.tokenizer.advance()
 
     if self.tokenizer.keyword() and self.tokenizer.current_token == "this":
+      # If we're returning "this", then we'll need to push "this" onto the stack first.
       self.vm_writer.write_push('pointer', 0)
       self.tokenizer.advance()
     elif self.tokenizer.current_token != ';':
+      # We'll need to compile any expressions we find after the "return" keyword.
       self.compile_expression()
     else:
+      # Even if a Jack subroutine returns nothing,
+      # the compiler always expects a method to return *something*.
+      #
+      # We'll push the constant 0, which will be immediately thrown away,
+      # to satisfy this contract.
       self.vm_writer.write_push('constant', 0)
 
     self.assert_symbol(';')
@@ -512,7 +525,10 @@ class CompilationEngine:
     self.assert_return_type()
     return_type = self.tokenizer.current_token
 
-    # Update subroutine symbol table with object reference, aka this.
+    # Methods are unique, since they implicitly imply an extra parameter:
+    # the object itself.
+    #
+    # We'll add the object to the subroutine symbol table as "this".
     if self.subroutine_type == 'method':
       self.subroutine_symbol_table.define('this', return_type, 'argument')
 
@@ -595,15 +611,19 @@ class CompilationEngine:
     elif self.tokenizer.int_val():
       self.vm_writer.write_push("constant", self.tokenizer.current_token)
 
-    # We need to consider some special keywords.
+    # We need to consider some special keyword expressions.
     # Most of keywords ultimately resolve to simple "push constant" VM commands.
-    # However, we want
     elif self.tokenizer.keyword():
+      # null and false keywords map to constant 0.
       if self.tokenizer.current_token in ["null", "false"]:
         self.vm_writer.write_push("constant", 0)
+      # The true keyword maps to constant -1.
       elif self.tokenizer.current_token == "true":
         self.vm_writer.write_push("constant", 1)
         self.vm_writer.write_command("neg")
+      # The this keyword indicates a reference to the current object in the THIS address.
+      elif self.tokenizer.current_token == "this":
+        self.vm_writer.write_push("pointer", 0)
 
     # If we have an identifer at this point, we can safely assume that
     # its a standalone variable, not part of a subroutine call or array access.
@@ -636,13 +656,14 @@ class CompilationEngine:
 
     # Handle:
     # - strings
-    # - keywords
     else:
       # TODO: Handle these
       pass
 
 
   def compile_var_dec(self):
+    # We'll keep a running tally of the local variable count.
+    # This is necessary for function declarations in VM code.
     var_count = 1
 
     self.assert_keyword('var')
@@ -655,9 +676,15 @@ class CompilationEngine:
     name = self.tokenizer.current_token
     self.tokenizer.advance()
 
+    # We have the name, type, and kind (which should be local)
+    # for this variable declaration.
+    #
+    # Let's add it to our symbol table!
     self.subroutine_symbol_table.define(name, typ, kind)
 
-    # Handle comma-separated variable declarations.
+    # It's entirely possible that we have comma-separated var declarations.
+    # Let's account for that.
+    # Note that we'll increment the variable count for each new variable we find.
     while self.tokenizer.current_token != ';':
       self.assert_symbol(',')
       var_count += 1
@@ -666,40 +693,44 @@ class CompilationEngine:
       name = self.tokenizer.current_token
       self.tokenizer.advance()
 
+      # We'll now add this variable to the symbol table.
       self.subroutine_symbol_table.define(name, typ, kind)
 
+    # The compile_subroutine_body() method will find the var_count useful
+    # for declaring the function as VM code.
     return var_count
 
 
   def compile_while_statement(self):
     self.assert_keyword('while')
 
-    # Increment while_counter for VM labeling.
+    # We'll increment while_counter for VM labeling.
+    # This way, we'll have distinct labels for each while statement we encounter.
     self.while_counter += 1
 
     label_1 = f"WHILE-STATEMENT-{self.while_counter}-A"
     label_2 = f"WHILE-STATEMENT-{self.while_counter}-B"
 
-    # Write label 1.
+    # Let's write the first label.
     self.vm_writer.write_label(label_1)
 
     self.tokenizer.advance()
     self.assert_symbol('(')
 
-    # Write the while's expression.
+    # Now we'll write the while's expression.
     self.tokenizer.advance()
     self.compile_expression()
 
     self.assert_symbol(')')
 
-    # Write the not and if-goto statements.
+    # Let's write the not and if-goto statements.
     self.vm_writer.write_command("not")
     self.vm_writer.write_if(label_2)
 
     self.tokenizer.advance()
     self.assert_symbol('{')
 
-    # Write the while's inner statements.
+    # Let's write the while's inner statements.
     self.tokenizer.advance()
     self.compile_statements()
 
@@ -708,5 +739,5 @@ class CompilationEngine:
     # Write the goto statement.
     self.vm_writer.write_goto(label_1)
 
-    # Write label 2.
+    # Finally, let's write the second label.
     self.vm_writer.write_label(label_2)
