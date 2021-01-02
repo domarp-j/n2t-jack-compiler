@@ -32,6 +32,10 @@ class CompilationEngine:
     self.if_counter = 0
     self.while_counter = 0
 
+    # We'll need to track the currently-parsing class and subroutine for various reasons.
+    self.current_class_name = None
+    self.current_subroutine_name = None
+
     # We'll need to track a subroutine's type as we parse it.
     # Its value is always one of ["function", "method", "constructor"].
     self.subroutine_type = None
@@ -89,7 +93,7 @@ class CompilationEngine:
     # Advance to the next token, which should be the class name.
     self.tokenizer.advance()
     self.assert_identifier()
-    class_name = self.tokenizer.current_token
+    self.current_class_name = self.tokenizer.current_token
 
     self.tokenizer.advance()
     self.assert_symbol('{')
@@ -111,7 +115,7 @@ class CompilationEngine:
       # There's no need to keep the old table.
       self.subroutine_symbol_table.reset()
 
-      self.compile_subroutine_dec(class_name)
+      self.compile_subroutine_dec()
       self.tokenizer.advance()
 
     self.assert_symbol('}')
@@ -168,7 +172,7 @@ class CompilationEngine:
 
     self.tokenizer.advance()
 
-    if self.tokenizer.op():
+    if self.tokenizer.binary_op():
       binary_op = self.tokenizer.current_token
 
       self.tokenizer.advance()
@@ -198,8 +202,8 @@ class CompilationEngine:
     # Let's increment the if_counter for VM labeling.
     self.if_counter += 1
 
-    label_1 = f"IF-STATEMENT-{self.if_counter}-A"
-    label_2 = f"IF-STATEMENT-{self.if_counter}-B"
+    label_1 = f"IF_STATEMENT_{self.if_counter}_A"
+    label_2 = f"IF_STATEMENT_{self.if_counter}_B"
 
     self.tokenizer.advance()
     self.assert_symbol('(')
@@ -366,7 +370,7 @@ class CompilationEngine:
       self.tokenizer.advance()
 
 
-  def compile_subroutine_body(self, class_name, subroutine_name):
+  def compile_subroutine_body(self):
     # First, we'll do a sanity check and look for a left brace.
     # A left brace symbol indicates the start of a block of statements.
     self.tokenizer.advance()
@@ -390,7 +394,7 @@ class CompilationEngine:
 
     # With the class name, subroutine name, and local count on hand,
     # we can finally declare our function in VM bytecode.
-    self.vm_writer.write_function(f"{class_name}.{subroutine_name}", local_count)
+    self.vm_writer.write_function(f"{self.current_class_name}.{self.current_subroutine_name}", local_count)
 
     # Edge case!
     if self.subroutine_type == 'constructor':
@@ -446,7 +450,7 @@ class CompilationEngine:
     self.tokenizer.advance()
     self.assert_symbol(['(', '.'])
 
-    # If the current token is a '.', this is a method call.
+    # If the current token is a period, then this is a method call.
     #
     # At this point in time, the name is either a class name or an object,
     # like MyClass or myObj.
@@ -500,6 +504,9 @@ class CompilationEngine:
 
       self.tokenizer.advance()
 
+    else:
+      name = f"{self.current_class_name}.{name}"
+
     self.assert_symbol('(')
 
     # We'll need to compile every expression inside of the subroutine call.
@@ -517,7 +524,7 @@ class CompilationEngine:
     self.vm_writer.write_call(name, arg_count)
 
 
-  def compile_subroutine_dec(self, class_name):
+  def compile_subroutine_dec(self):
     self.assert_keyword(['constructor', 'method', 'function'])
     self.subroutine_type = self.tokenizer.current_token
 
@@ -534,7 +541,7 @@ class CompilationEngine:
 
     self.tokenizer.advance()
     self.assert_identifier()
-    subroutine_name = self.tokenizer.current_token
+    self.current_subroutine_name = self.tokenizer.current_token
 
     self.tokenizer.advance()
     self.assert_symbol('(')
@@ -545,7 +552,7 @@ class CompilationEngine:
     # compile_parameter_list() should have already advanced to ")" for us.
     self.assert_symbol(')')
 
-    self.compile_subroutine_body(class_name, subroutine_name)
+    self.compile_subroutine_body()
 
 
   def compile_term(self):
@@ -608,7 +615,7 @@ class CompilationEngine:
 
     # Now we've reached some simpler terms!
     # If we encounter a number, we simply write "push constant {number}".
-    elif self.tokenizer.int_val():
+    elif self.tokenizer.int_val() or self.tokenizer.int_val() == 0:
       self.vm_writer.write_push("constant", self.tokenizer.current_token)
 
     # We need to consider some special keyword expressions.
@@ -654,11 +661,13 @@ class CompilationEngine:
       else:
         raise AssertionError(f"Unknown identifier: {name}")
 
-    # Handle:
-    # - strings
-    else:
-      # TODO: Handle these
+    # TODO
+    # For strings, we'll need to call String.new() and String.appendChar().
+    elif self.tokenizer.string_val():
       pass
+
+    else:
+      raise AssertionError(f"Unsure how to handle parse the current token as a term: {self.tokenizer.current_token}")
 
 
   def compile_var_dec(self):
@@ -708,8 +717,8 @@ class CompilationEngine:
     # This way, we'll have distinct labels for each while statement we encounter.
     self.while_counter += 1
 
-    label_1 = f"WHILE-STATEMENT-{self.while_counter}-A"
-    label_2 = f"WHILE-STATEMENT-{self.while_counter}-B"
+    label_1 = f"WHILE_STATEMENT_{self.while_counter}_A"
+    label_2 = f"WHILE_STATEMENT_{self.while_counter}_B"
 
     # Let's write the first label.
     self.vm_writer.write_label(label_1)
