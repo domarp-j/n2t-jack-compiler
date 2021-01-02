@@ -72,7 +72,7 @@ SYMBOLS = [
 ]
 
 
-OPS = [
+BINARY_OPS = [
   '+',
   '-',
   '*',
@@ -198,7 +198,7 @@ class JackTokenizer:
     if self.token_type != KEYWORD:
       return
 
-    return f"<{self.token_type}> {self.current_token} </{self.token_type}>"
+    return self.current_token
 
 
   # Return the current token as a symbol.
@@ -206,18 +206,7 @@ class JackTokenizer:
     if self.token_type != SYMBOL:
       return
 
-    sbol = self.current_token
-
-    if self.current_token == '<':
-      sbol = "&lt;"
-    elif self.current_token == '>':
-      sbol = "&gt;"
-    elif self.current_token == '"':
-      sbol = "&quot;"
-    elif self.current_token == '&':
-      sbol = "&amp;"
-
-    return f"<{self.token_type}> {sbol} </{self.token_type}>"
+    return self.current_token
 
 
   # Return the current token (an identifier).
@@ -225,7 +214,7 @@ class JackTokenizer:
     if self.token_type != IDENTIFIER:
       return
 
-    return f"<{self.token_type}> {self.current_token} </{self.token_type}>"
+    return self.current_token
 
 
    # Return the integer value of the current token.
@@ -233,7 +222,7 @@ class JackTokenizer:
     if self.token_type != INT_CONST:
       return
 
-    return f"<{self.token_type}> {int(self.current_token)} </{self.token_type}>"
+    return int(self.current_token)
 
 
   # Return the string value of the current token, without double quotes or newlines.
@@ -241,24 +230,15 @@ class JackTokenizer:
     if self.token_type != STRING_CONST:
       return
 
-    return f"<{self.token_type}> {self.current_token[1:-1]} </{self.token_type}>"
+    return self.current_token[1:-1]
 
 
   # Return the current token if its an operation.
-  def op(self):
-    if self.current_token not in OPS:
+  def binary_op(self):
+    if self.current_token not in BINARY_OPS:
       return
 
-    sbol = self.current_token
-
-    if self.current_token == '<':
-      sbol = "&lt;"
-    elif self.current_token == '>':
-      sbol = "&gt;"
-    elif self.current_token == '&':
-      sbol = "&amp;"
-
-    return f"<{self.token_type}> {sbol} </{self.token_type}>"
+    return self.current_token
 
 
   # Return the current token if its a unary operation.
@@ -266,37 +246,5 @@ class JackTokenizer:
     if self.current_token not in UNARY_OPS:
       return
 
-    return f"<{self.token_type}> {self.current_token} </{self.token_type}>"
+    return self.current_token
 
-
-  # Return current token as an XML tag.
-  def current_token_xml(self):
-    if self.keyword():
-      return self.keyword()
-
-    if self.symbol():
-      return self.symbol()
-
-    if self.identifier():
-      return self.identifier()
-
-    if self.int_val():
-      return self.int_val()
-
-    if self.string_val():
-      return self.string_val()
-
-    raise AssertionError(f"Uncategorized token: {self.current_token}")
-
-
-  # Run a test on the tokenizer.
-  def run_test(self):
-    xml_output = "<tokens>"
-
-    while self.has_more_tokens():
-      self.advance()
-      xml_output += f"\n{self.current_token_xml()}"
-
-    xml_output += "\n</tokens>\n"
-
-    return xml_output

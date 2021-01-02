@@ -30,10 +30,6 @@ class JackCompiler:
       self.strip_newlines()
       self.strip_multiline_comments()
 
-      # Add the following code to test the tokenizer.
-      # self.build_tokenizer()
-      # self.test_tokenizer(jack_file)
-
       self.build_tokenizer()
       self.build_vm_writer(jack_file)
 
@@ -88,13 +84,6 @@ class JackCompiler:
   def run_compilation_engine(self):
     CompilationEngine(self.tokenizer, self.vm_writer).run()
 
-
-  # Create an XML file to test the tokenizer.
-  def test_tokenizer(self, jack_file):
-    token_xml_file_name = jack_file.replace(".jack", "T.xml")
-
-    with open(token_xml_file_name, 'w') as xml_file:
-      xml_file.write(self.tokenizer.run_test())
 
 
 
