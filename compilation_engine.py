@@ -447,6 +447,10 @@ class CompilationEngine:
     # We'll store it for future use.
     name = self.tokenizer.current_token
 
+    # We'll also store whether the subroutine has a prefix, e.g. MyClass or myObj.
+    # By default, let's assume there's a prefix.
+    has_prefix = True
+
     self.tokenizer.advance()
     self.assert_symbol(['(', '.'])
 
@@ -505,6 +509,13 @@ class CompilationEngine:
       self.tokenizer.advance()
 
     else:
+      # If we hit this code, then we've encounted a subroutine call without a prefix.
+      # Example: doAThing()
+      # We can assume that this is a method call and never a function call.
+      has_prefix = False
+
+      # VM function calls are always of the format Class.subroutine
+      # Therefore, we'll need to prepend the current class's name to the subroutine identifier.
       name = f"{self.current_class_name}.{name}"
 
     self.assert_symbol('(')
@@ -520,6 +531,15 @@ class CompilationEngine:
 
     self.assert_symbol(')')
 
+    if not has_prefix:
+      # If this subroutine didn't have a prefix, we're assuming it's a method call.
+      # Method calls always take at least one argument: the object itself.
+      # We'll need to push that object onto the stack.
+      self.vm_writer.write_push("pointer", 0)
+
+      # We should also increment arg_count to account for the object itself.
+      arg_count += 1
+
     # FINALLY, we can write our VM code!
     self.vm_writer.write_call(name, arg_count)
 
@@ -532,9 +552,7 @@ class CompilationEngine:
     self.assert_return_type()
     return_type = self.tokenizer.current_token
 
-    # Methods are unique, since they implicitly imply an extra parameter:
-    # the object itself.
-    #
+    # Methods are unique, since they implicitly imply an extra parameter: the object itself.
     # We'll add the object to the subroutine symbol table as "this".
     if self.subroutine_type == 'method':
       self.subroutine_symbol_table.define('this', return_type, 'argument')
